@@ -541,7 +541,7 @@ class _Comm:
             bases = [int(p) for p in handle.buffer_ptrs]
             assert bases[self.rank] == recv.data_ptr()
             self.peer_ptrs = torch.tensor(bases, dtype=torch.int64, device=device)
-            torch.cuda.synchronize(device)
+            torch.accelerator.synchronize(device)
             handle.barrier()
             self.recv, self.handle = recv, handle
         except Exception as e:  # noqa: BLE001 - every rank falls back together
@@ -579,6 +579,7 @@ class Screen:
         dev = weight.device
         self.key = _weight_key(weight)
         self.n_valid = n_valid
+        self.launched = False
         self.q = torch.zeros((rows, k), dtype=torch.int8, device=dev)
         self.scale = torch.ones(rows, dtype=torch.float32, device=dev)
         self.coef = torch.zeros(rows, dtype=torch.float32, device=dev)
