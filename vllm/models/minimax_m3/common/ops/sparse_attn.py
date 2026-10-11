@@ -654,8 +654,9 @@ def minimax_m3_sparse_attn_decode(
 ) -> None:
     """GQA block-sparse attention for decode (split-K over the top-k blocks).
 
-    ``fp16_dot`` and ``fill_sms`` are CUDA-only opt-in tunings (``None`` reads
-    ``VLLM_MINIMAX_M3_SPARSE_DECODE_FP16_DOT`` / ``..._FILL_SMS``):
+    ``fp16_dot`` and ``fill_sms`` are CUDA-only tunings. By default, FP16 math
+    follows ``VLLM_MINIMAX_M3_SPARSE_DECODE_FP16_DOT`` and SM filling is enabled
+    on SM100-family GPUs outside batch-invariant mode:
 
     - ``fp16_dot``: with an fp8 KV cache and no or scalar KV scales, run both
       dots in fp16 (fp8 -> fp16 is exact) and fold the scalar scales into the
@@ -664,8 +665,9 @@ def minimax_m3_sparse_attn_decode(
       programs on this device (not limited to powers of two) instead of a
       fixed 256-program target.
 
-    Both change the floating-point rounding (not bit-identical to the default
-    path), so they are off by default.
+    Both can change floating-point rounding relative to the fixed-grid bf16
+    path. FP16 math remains opt-in; batch-invariant mode disables automatic
+    SM filling.
     """
     total_q, num_heads, head_dim = q.shape
     assert total_q == seq_lens.shape[0] * decode_query_len
@@ -703,7 +705,11 @@ def minimax_m3_sparse_attn_decode(
     if fp16_dot is None:
         fp16_dot = envs.VLLM_MINIMAX_M3_SPARSE_DECODE_FP16_DOT
     if fill_sms is None:
-        fill_sms = envs.VLLM_MINIMAX_M3_SPARSE_DECODE_FILL_SMS
+        fill_sms = (
+            on_cuda
+            and current_platform.is_device_capability_family(100)
+            and not envs.VLLM_BATCH_INVARIANT
+        )
     fp16_dot = (
         fp16_dot and on_cuda and use_fp8 and kv_scale_mode != _KV_SCALE_PER_TOKEN_HEAD
     )
