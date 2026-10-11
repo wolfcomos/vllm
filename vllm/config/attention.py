@@ -43,6 +43,9 @@ class AttentionConfig:
     minimax_m3_msa_decode_backend: MiniMaxM3MSADecodeBackend = "triton"
     """Sparse decode kernel used by the MiniMax M3 MSA backend."""
 
+    minimax_m3_indexer_prefill_kv_split: bool = False
+    """Use the bounded split-KV indexer prefill planner."""
+
     backend_per_kind: dict[str, AttentionBackendEnum] = field(default_factory=dict)
     """Per-KV-cache-group attention backend overrides, keyed by
     `KVCacheSpecKind` (e.g. `{"mla_attention": "FLASHINFER_MLA",
