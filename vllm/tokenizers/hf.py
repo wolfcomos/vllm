@@ -4,14 +4,14 @@ import contextlib
 import copy
 import json
 import queue
-import re
 import threading
 from array import array
 from collections import OrderedDict
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, TypeAlias, TypeVar
+from typing import Any, TypeAlias, TypeVar, cast
 
+import regex as re
 import tokenizers
 from transformers import AutoTokenizer, PythonBackend, TokenizersBackend
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
@@ -111,10 +111,13 @@ class SegmentedPromptEncoder:
         if cache_bytes <= 0 or not isinstance(tokenizer, TokenizersBackend):
             return None
         # Skip the thread pool wrapper; the encode path must be the stock one.
-        tok_cls = next(
-            c
-            for c in type(tokenizer).__mro__
-            if not issubclass(c, ThreadSafeHFTokenizerMixin)
+        tok_cls = cast(
+            type[TokenizersBackend],
+            next(
+                c
+                for c in type(tokenizer).__mro__
+                if not issubclass(c, ThreadSafeHFTokenizerMixin)
+            ),
         )
         if (
             tok_cls.__call__ is not PreTrainedTokenizerBase.__call__
@@ -124,7 +127,7 @@ class SegmentedPromptEncoder:
         ):
             return None
         backend = getattr(tokenizer, "_tokenizer", None)
-        if type(backend) is not tokenizers.Tokenizer:
+        if backend is None or type(backend) is not tokenizers.Tokenizer:
             return None
         # A Metaspace pre-tokenizer with prepend_scheme="first" only prefixes
         # the piece at offset 0 of the whole input, so encoding the pieces
