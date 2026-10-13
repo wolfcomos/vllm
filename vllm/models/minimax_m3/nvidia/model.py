@@ -13,6 +13,7 @@ The MiniMax-M3-preview config selects a single set of branches:
 """
 
 from collections.abc import Iterable
+from typing import TYPE_CHECKING, cast
 
 import torch
 from torch import nn
@@ -95,6 +96,9 @@ from vllm.v1.kv_cache_interface import (
     KVCacheSpec,
     get_kv_quant_mode,
 )
+
+if TYPE_CHECKING:
+    from vllm.models.minimax_m3.nvidia.indexer_msa import MiniMaxM3IndexerMSAMetadata
 
 
 def _sparse_attention_layer_ids(config: PreTrainedConfig) -> set[int]:
@@ -633,7 +637,12 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
         query_fp8 = self._allocate_query_fp8(qkv)
         if index_cache.tp_shard > 1:
             # Sharded index-K: insert only this rank's rows.
-            index_md = get_forward_context().attn_metadata[index_cache.prefix]
+            attn_metadata = get_forward_context().attn_metadata
+            assert isinstance(attn_metadata, dict)
+            index_md = cast(
+                "MiniMaxM3IndexerMSAMetadata", attn_metadata[index_cache.prefix]
+            )
+            assert index_md.index_slot_mapping is not None
             index_slot_mapping = index_md.index_slot_mapping
         # index_q matches the index-K cache dtype (e4m3 for the fp8 score path);
         # the fused kernel emits fp8 directly when this buffer is e4m3.
