@@ -157,7 +157,7 @@ def _merge_kernel(
     vout_ptr,
     vlse_ptr,
     out_ptr,
-    stride_ot,
+    stride_out_token,
     stride_oh,
     num_reqs,
     target_chunks,
@@ -256,7 +256,7 @@ def _merge_kernel(
         den = den * alpha + tl.sum(w, axis=0)
     res = tl.where(den > 0, acc / tl.maximum(den, 1e-30), 0.0)
     tl.store(
-        out_ptr + tok.to(tl.int64) * stride_ot + h * stride_oh + d,
+        out_ptr + tok.to(tl.int64) * stride_out_token + h * stride_oh + d,
         res.to(out_ptr.dtype.element_ty),
     )
 

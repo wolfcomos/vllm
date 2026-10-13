@@ -172,7 +172,7 @@ def _get_balanced_decode(
         and vllm_config.parallel_config.decode_context_parallel_size == 1
     ):
         return None
-    device = torch.device("cuda", torch.cuda.current_device())
+    device = torch.device("cuda", torch.accelerator.current_device_index())
     key = (
         device,
         vllm_config.model_config.max_model_len,
