@@ -1447,11 +1447,6 @@ class MinimaxM3QKVParallelLinearWithIndexer(QKVParallelLinear):
             f"{shard_id}."
         )
 
-    def _is_replicated_shard(self, loaded_shard_id: str) -> bool:
-        return loaded_shard_id == "index_k" or (
-            loaded_shard_id == "index_q" and self.replicate_index_q
-        )
-
     def _get_shard_offset_mapping(self, loaded_shard_id: str) -> int | None:
         h = self.head_size
         nq, nkv, nidx = self.num_heads, self.num_kv_heads, self.num_index_heads
@@ -1495,7 +1490,8 @@ class MinimaxM3QKVParallelLinearWithIndexer(QKVParallelLinear):
         # num_heads == tp_size selects shard 0 on every rank for replicated projections.
         num_heads = (
             self.tp_size
-            if self._is_replicated_shard(loaded_shard_id)
+            if loaded_shard_id == "index_k"
+            or (loaded_shard_id == "index_q" and self.replicate_index_q)
             else self.num_kv_head_replicas
         )
         param.load_qkv_weight(
@@ -1531,7 +1527,9 @@ class MinimaxM3QKVParallelLinearWithIndexer(QKVParallelLinear):
         param_data = param.data.narrow(output_dim, shard_offset, shard_size)
         if loaded_shard_id == "q":
             shard_rank = self.tp_rank
-        elif self._is_replicated_shard(loaded_shard_id):
+        elif loaded_shard_id == "index_k" or (
+            loaded_shard_id == "index_q" and self.replicate_index_q
+        ):
             shard_rank = 0  # replicated to every rank
         else:
             shard_rank = self.tp_rank // self.num_kv_head_replicas
