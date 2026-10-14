@@ -627,17 +627,17 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
             return qkv.new_zeros((num_tokens, self.hidden_size))
 
         main_slot_mapping = fwd_slot_mapping[self.layer_name]
-        index_cache = self.indexer.index_cache
-        index_slot_mapping = fwd_slot_mapping[index_cache.prefix]
+        index_slot_mapping = fwd_slot_mapping[self.indexer.index_cache.prefix]
         q = qkv.new_empty((num_tokens, self.q_size))
         # With query_fp8, q is emitted only in fp8; the attend dequantizes it
         # into ``q`` for the tokens that run on Triton decode.
         query_fp8 = self._allocate_query_fp8(qkv)
-        if index_cache.tp_shard > 1:
+        if self.indexer.index_cache.tp_shard > 1:
             attn_metadata = get_forward_context().attn_metadata
             assert isinstance(attn_metadata, dict)
             index_md = cast(
-                "MiniMaxM3IndexerMSAMetadata", attn_metadata[index_cache.prefix]
+                "MiniMaxM3IndexerMSAMetadata",
+                attn_metadata[self.indexer.index_cache.prefix],
             )
             assert index_md.index_slot_mapping is not None
             index_slot_mapping = index_md.index_slot_mapping
@@ -645,7 +645,7 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
         # the fused kernel emits fp8 directly when this buffer is e4m3.
         index_q = qkv.new_empty(
             (num_tokens, self.index_q_size),
-            dtype=index_cache.dtype,
+            dtype=self.indexer.index_cache.dtype,
         )
         ops.fused_minimax_m3_qknorm_rope_kv_insert(
             qkv,
@@ -663,7 +663,7 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
             main_slot_mapping,
             index_slot_mapping,
             self.kv_cache,
-            index_cache.kv_cache,
+            self.indexer.index_cache.kv_cache,
             self.kv_cache.size(2),  # paged-cache block size
             q if query_fp8 is None else None,
             index_q,
