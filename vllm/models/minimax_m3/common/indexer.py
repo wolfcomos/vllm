@@ -355,7 +355,6 @@ class MiniMaxM3IndexerImpl(nn.Module):
 
     # Set by each impl so the side cache reports the matching backend + builder.
     indexer_backend_cls: ClassVar[type[AttentionBackend]] = MiniMaxM3IndexerBackend
-    supports_index_k_shard: ClassVar[bool] = False
 
     def __init__(
         self,
@@ -421,6 +420,13 @@ class MiniMaxM3IndexerImpl(nn.Module):
 
 class MiniMaxM3IndexerTritonImpl(MiniMaxM3IndexerImpl):
     """Triton indexer score + top-k for both prefill and decode."""
+
+    def __init__(self, *, index_k_shard: int = 1, **kwargs) -> None:
+        if index_k_shard > 1:
+            raise ValueError(
+                "Triton indexer does not support a TP-sharded index-K cache"
+            )
+        super().__init__(index_k_shard=index_k_shard, **kwargs)
 
     def forward(
         self,
@@ -599,10 +605,6 @@ class MiniMaxM3Indexer(nn.Module):
             topk_blocks=topk_blocks,
             indexer_kv_dtype=indexer_kv_dtype,
         )
-        if index_k_shard > 1 and not impl_cls.supports_index_k_shard:
-            raise ValueError(
-                f"{impl_cls.__name__} does not support a TP-sharded index-K cache"
-            )
         self.impl = impl_cls(
             num_kv_heads=num_kv_heads,
             scale=scale,

@@ -304,7 +304,6 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
     """Decode: CuteDSL/Triton score. Prefill: fmha_sm100 OnlyScore + top-k."""
 
     indexer_backend_cls: ClassVar[type[AttentionBackend]] = MiniMaxM3IndexerMSABackend
-    supports_index_k_shard: ClassVar[bool] = True
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
