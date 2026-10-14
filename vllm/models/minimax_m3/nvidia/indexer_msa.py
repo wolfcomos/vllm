@@ -17,11 +17,6 @@ Decode scores with CuteDSL when the flattened query tile is supported and fall
 back to Triton otherwise, writing into the decode region. Only the top-k is
 shared with prefill.
 
-With a TP-sharded index-K cache (``idxk_shard``, opt-in), ``index_query`` carries
-every index head; decode scores all of them over this rank's token slice and
-max-combines across ranks, and prefill gathers the prefill requests' full pages
-for the stock OnlyScore pass over this rank's heads.
-
 ``fmha_sm100`` imports are function-local so this module is import-safe on
 AMD / non-SM100.
 """
@@ -31,7 +26,6 @@ from typing import ClassVar
 
 import torch
 
-import vllm.envs as envs
 from vllm.config import VllmConfig
 from vllm.distributed import get_tensor_model_parallel_rank
 from vllm.forward_context import get_forward_context
@@ -46,7 +40,6 @@ from vllm.models.minimax_m3.common.ops.index_topk import (
     minimax_m3_index_decode_score,
 )
 from vllm.models.minimax_m3.nvidia import idxk_shard
-from vllm.models.minimax_m3.nvidia.indexer_kv_split import PrefillKVSplitPlanner
 from vllm.models.minimax_m3.nvidia.ops import minimax_m3_index_decode_score_cutedsl
 from vllm.v1.attention.backend import (
     AttentionBackend,
@@ -88,8 +81,7 @@ class MiniMaxM3IndexerMSAPrefillMetadata:
     prefix_lens: torch.Tensor  # [num_prefills] int32, context tokens
     max_query_len: int
     page_table: torch.Tensor  # flat physical page indices for the prefill side
-    # Sharded index-K: the prefill requests' pages in request order (int64);
-    # page_table then indexes this list (the gathered full pages).
+    # Physical pages to gather; page_table indexes the gathered result.
     gather_pages: torch.Tensor | None = None
 
 
@@ -119,8 +111,7 @@ class MiniMaxM3IndexerMSAMetadata(MiniMaxM3IndexerMetadata):
     # Per-token causal page count cdiv(seq_pos+1, PAGE_SIZE), [total_q] int32:
     # drives sparse_topk_select force_end_blocks + -1 out-of-range clamp.
     topk_num_valid_pages: torch.Tensor | None = None
-    # Sharded index-K: slots of this rank's index-K rows (-1 elsewhere), the
-    # fused insert kernel's index slot mapping (stable cudagraph buffer view).
+    # Stable insert slots for this rank's index-K rows; -1 skips other ranks.
     index_slot_mapping: torch.Tensor | None = None
 
 
@@ -138,14 +129,9 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
         device: torch.device,
     ) -> None:
         super().__init__(kv_cache_spec, layer_names, vllm_config, device)
-        # Persistent unified score buffer [T, H, MAX_K_TILES] shared by all
-        # indexer layers and reused across forwards. Stable address (required
-        # for the captured decode path) + fixed tile dim so the decode score
-        # kernel's shape is frozen at capture. Filled with -inf per forward in
-        # build(); the valid/padding partition is a per-forward constant, so
-        # every layer overwrites the same valid tiles before its own top-k.
-        # TP-sharded index-K cache (encoded in the spec's packed page size).
-        self.idxk_tp = idxk_shard.shard_factor_from_spec(kv_cache_spec)
+        content = kv_cache_spec.state_content_bytes
+        full = kv_cache_spec.head_size * kv_cache_spec.dtype.itemsize
+        self.idxk_tp = 1 if content is None else full // content
         self.idxk_rank = 0
         self.idxk_slots: torch.Tensor | None = None
         if self.idxk_tp > 1:
@@ -161,6 +147,12 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
                 dtype=torch.int64,
                 device=device,
             )
+        # Persistent unified score buffer [T, H, MAX_K_TILES] shared by all
+        # indexer layers and reused across forwards. Stable address (required
+        # for the captured decode path) + fixed tile dim so the decode score
+        # kernel's shape is frozen at capture. Filled with -inf per forward in
+        # build(); the valid/padding partition is a per-forward constant, so
+        # every layer overwrites the same valid tiles before its own top-k.
         self.unified_scores_buffer = torch.empty(
             vllm_config.scheduler_config.max_num_batched_tokens,
             self.num_index_heads,
@@ -168,13 +160,6 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
             dtype=torch.float32,
             device=device,
         )
-        # Split-KV prefill score plan (bit-identical scores; see
-        # indexer_kv_split).
-        self.kv_split: PrefillKVSplitPlanner | None = None
-        if envs.VLLM_MINIMAX_M3_INDEXER_PREFILL_KV_SPLIT:
-            self.kv_split = PrefillKVSplitPlanner(
-                self.num_index_heads, PAGE_SIZE, MAX_K_TILES, device
-            )
 
     def build(
         self,
@@ -198,7 +183,6 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
         assert num_decodes + num_prefills == num_reqs
         assert num_decode_tokens + num_prefill_tokens == num_tokens
 
-        # Sharded index-K: this rank's insert slots, into the stable buffer.
         index_slot_mapping = None
         if self.idxk_slots is not None:
             index_slot_mapping = idxk_shard.shard_slot_mapping(
@@ -257,38 +241,28 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
             nvp = (kv_lens_cpu + PAGE_SIZE - 1) // PAGE_SIZE
             side_qo = qo_lens_cpu[lo:hi]
             side_kv = kv_lens_cpu[lo:hi]
-            split = (
-                None
-                if self.kv_split is None
-                else self.kv_split.plan(side_qo, side_kv, block_table[lo:hi])
+            plan = _fmha_sm100_plan(
+                side_qo,
+                side_kv,
+                self.num_index_heads,
+                num_kv_heads=1,
+                qo_offset=side_kv - side_qo,  # bottom-right causal
+                page_size=PAGE_SIZE,
+                output_maxscore=True,
+                causal=True,
+                num_kv_splits=1,
             )
-            if split is not None:
-                plan, page_table = split
-            else:
-                plan = _fmha_sm100_plan(
-                    side_qo,
-                    side_kv,
-                    self.num_index_heads,
-                    num_kv_heads=1,
-                    qo_offset=side_kv - side_qo,  # bottom-right causal
-                    page_size=PAGE_SIZE,
-                    output_maxscore=True,
-                    causal=True,
-                    num_kv_splits=1,
-                )
-                # Force the plan's tile dim to the unified buffer's so prefill
-                # writes its max_score straight into unified[:, :, nd:] (the
-                # stride-aware binding shape-matches the tile dim exactly).
-                # max_k_tiles >= the plan's natural value, so the extra tiles
-                # are simply never written.
-                plan["max_k_tiles"] = max_k_tiles
-                cols = torch.arange(block_table.shape[1], device=block_table.device)
-                valid = cols[None, :] < nvp[lo:hi].to(block_table.device)[:, None]
-                page_table = block_table[lo:hi][valid].to(torch.int32)
+            # Force the plan's tile dim to the unified buffer's so prefill writes
+            # its max_score straight into unified[:, :, nd:] (the stride-aware
+            # binding shape-matches the tile dim exactly). max_k_tiles >= the
+            # plan's natural value, so the extra tiles are simply never written.
+            plan["max_k_tiles"] = max_k_tiles
+            cols = torch.arange(block_table.shape[1], device=block_table.device)
+            valid = cols[None, :] < nvp[lo:hi].to(block_table.device)[:, None]
+            page_table = block_table[lo:hi][valid].to(torch.int32)
             gather_pages = None
             if self.idxk_tp > 1:
-                # Split-KV slices reuse physical pages. Gather each page once
-                # and retain the planner's slice order through the inverse map.
+                # Gather shared prefix pages once and remap the page table.
                 gather_pages, page_table = torch.unique(
                     page_table, sorted=True, return_inverse=True
                 )
@@ -355,8 +329,9 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
         num_tokens = md.num_actual_tokens
         nd = md.num_decode_tokens
         sharded = self.index_cache.tp_shard > 1
-        # Sharded: every index head (this rank's are [rank * H, (rank + 1) * H)).
-        index_q = index_query[:num_tokens].view(num_tokens, -1, self.index_head_dim)
+        index_q = index_query[:num_tokens].view(
+            -1, self.num_index_heads * self.index_cache.tp_shard, self.index_head_dim
+        )
         kv = self.index_cache.kv_cache
         # Shared persistent top-k output buffer; the unified top-k below writes
         # the selected block ids into buf[:num_tokens].
@@ -380,8 +355,6 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
             # max_decode_query_len avoids recompiles across runtime decode sizes.
             # Fall back when the flattened Q tile gets too wide for this kernel.
             if sharded:
-                # Every head over this rank's token slice, then a cross-rank
-                # max of the per-block partial maxima (exact).
                 idxk_shard.decode_score(
                     index_q[:nd],
                     kv,
@@ -418,8 +391,6 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
             p = md.prefill_msa
             prefill_q = index_q[nd:]
             if p.gather_pages is not None:
-                # Sharded index-K: full pages of the prefill requests, scored
-                # for this rank's heads only.
                 kv = idxk_shard.gather_prefill_pages(kv, p.gather_pages)
                 h = self.num_index_heads
                 prefill_q = prefill_q[:, self.idxk_rank * h : (self.idxk_rank + 1) * h]

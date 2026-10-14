@@ -1367,9 +1367,8 @@ class MinimaxM3QKVParallelLinearWithIndexer(QKVParallelLinear):
     head_size``, so it shards exactly like K/V -- including the KV-head
     *replication* path when ``tp_size > total_num_kv_heads`` (this is what makes
     a TP size greater than the KV-head count work). ``index_k`` is a single
-    shared head, replicated to every rank. With ``replicate_index_q`` every rank
-    computes all ``index_q`` heads (a TP-sharded index-K cache scores every head
-    on every rank).
+    shared head, replicated to every rank. ``replicate_index_q`` also replicates
+    all index query heads for token-sharded index-K scoring.
     """
 
     def __init__(
@@ -1493,9 +1492,7 @@ class MinimaxM3QKVParallelLinearWithIndexer(QKVParallelLinear):
                 weight_block_size, shard_size, shard_offset
             )
 
-        # index_k (and a replicated index_q) is fully replicated: num_heads ==
-        # tp_size makes load_qkv_weight pick shard_id_int == 0 on every rank.
-        # q/k/v/index_q ride the KV-head replication factor.
+        # num_heads == tp_size selects shard 0 on every rank for replicated projections.
         num_heads = (
             self.tp_size
             if self._is_replicated_shard(loaded_shard_id)

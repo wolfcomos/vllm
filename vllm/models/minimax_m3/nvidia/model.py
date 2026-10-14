@@ -450,8 +450,6 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
         self.indexer_kv_dtype = vllm_config.attention_config.resolve_indexer_kv_dtype(
             "bf16"
         )
-        # TP-sharded index-K cache (nvidia/idxk_shard.py): every rank then
-        # computes (and scores) all index_q heads; the top-k stays per rank.
         self.index_k_shard = idxk_shard.resolve_shard(
             vllm_config,
             self.total_idx_heads,
@@ -636,7 +634,6 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
         # into ``q`` for the tokens that run on Triton decode.
         query_fp8 = self._allocate_query_fp8(qkv)
         if index_cache.tp_shard > 1:
-            # Sharded index-K: insert only this rank's rows.
             attn_metadata = get_forward_context().attn_metadata
             assert isinstance(attn_metadata, dict)
             index_md = cast(

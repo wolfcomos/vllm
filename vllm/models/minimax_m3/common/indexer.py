@@ -132,8 +132,6 @@ class MiniMaxM3IndexerCache(nn.Module, AttentionLayerBase):
         self.dtype = cache_dtype
         self.prefix = prefix
         self.cache_config = cache_config
-        # > 1: the TP ranks shard every block's tokens (rank r keeps tokens
-        # r, r + tp_shard, ...), see nvidia/idxk_shard.py.
         self.tp_shard = tp_shard
         # Impl-chosen backend -> each impl gets its own builder (get_attn_backend).
         self.backend_cls = backend_cls
@@ -151,13 +149,8 @@ class MiniMaxM3IndexerCache(nn.Module, AttentionLayerBase):
             num_blocks, block_size, content = kv_cache.shape
             rows = block_size // self.tp_shard
             assert content * self.tp_shard == self.head_dim
-            assert kv_cache.stride(0) == block_size * content
-            assert kv_cache.stride(1) == content and kv_cache.stride(2) == 1
-            kv_cache = torch.as_strided(
-                kv_cache,
-                (num_blocks, rows, self.head_dim),
-                (kv_cache.stride(0), self.head_dim, 1),
-            )
+            assert kv_cache.is_contiguous()
+            kv_cache = kv_cache.view(num_blocks, rows, self.head_dim)
         self.kv_cache = kv_cache
 
     def get_kv_cache_spec(self, vllm_config: VllmConfig) -> KVCacheSpec:
@@ -362,7 +355,6 @@ class MiniMaxM3IndexerImpl(nn.Module):
 
     # Set by each impl so the side cache reports the matching backend + builder.
     indexer_backend_cls: ClassVar[type[AttentionBackend]] = MiniMaxM3IndexerBackend
-    # Whether this impl reads a TP-sharded index-K cache (nvidia/idxk_shard.py).
     supports_index_k_shard: ClassVar[bool] = False
 
     def __init__(

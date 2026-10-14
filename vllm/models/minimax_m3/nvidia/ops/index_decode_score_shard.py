@@ -1,18 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
-"""CuteDSL MiniMax M3 index decode score over a TP-sharded index-K cache.
+"""Decode index scores for TP4-sharded FP8 keys, with 32 full key rows per page.
 
-With the index-K cache sharded across TP ranks (rank ``r`` keeps tokens
-``r, r + tp, ...`` of every 128-token block, as a ``[128 // tp, D]`` page), each
-rank scores its token slice for *all* index heads and pushes the per-block
-partial maxima of head ``h`` straight into the receive slot of the rank owning
-``h`` (a relaxed system-scope store over NVLink); the owner's cross-rank max
-(``idxk_shard``) polls those slots, so no barrier is needed.
-
-The kernel is ``IndexDecodeScoreKernel`` with one shard page per MMA warp:
-every (token, query) dot product uses the same fp8->fp16 conversion and
-``mma.sync`` k-order, so the partial maxima (and their max) are bit-identical
-to the replicated scores. fp8 only, ``tp == 4`` (32-row pages).
+Each rank scores all index heads and pushes partial block maxima to each head's
+owner. Cross-rank reduction lives in idxk_shard. Dot products use the replicated
+kernel's FP8-to-FP16 conversion and MMA order.
 """
 
 from functools import cache
@@ -250,8 +242,7 @@ class IndexDecodeScoreShardKernel:
                 with cute.arch.elect_one():
                     Q_size = BLOCK_Q * head_dim * (dtype.width // 8)
                     cute.arch.mbarrier_arrive_and_expect_tx(tma_full_mbar, Q_size)
-                # TMA bounds-checks rows when runtime decode_query_len is smaller
-                # than MAX_DQL; padded Q columns are masked before global stores.
+                # Mask extra query columns before stores when runtime DQL < MAX_DQL.
                 simple_tma_copy(Q_tma.atom, gQ_tile, sQ_tma, tma_full_mbar)
 
                 tma_stage = (tma_stage + 1) % num_stages

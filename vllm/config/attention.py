@@ -45,15 +45,9 @@ class AttentionConfig:
     """Sparse decode kernel used by the MiniMax M3 MSA backend."""
 
     minimax_m3_index_k_tp_shard: MiniMaxM3IndexKTPShard = "off"
-    """Shard the MiniMax M3 fp8 indexer K cache across tensor-parallel ranks
-    instead of replicating it: rank r stores tokens r, r + tp, ... of every
-    block, decode scores every index head over that slice and max-combines the
-    per-block partial maxima across ranks over symmetric memory, and prefill
-    gathers full pages. "on" shards whenever supported (TP4, SM100-family GPU,
-    MSA indexer with `indexer_kv_dtype="fp8"`, symmetric memory available);
-    "auto" additionally requires a decode-batch cap of at least 6 or
-    `max_model_len` >= 256k; "off" keeps the replicated cache. Unsupported
-    deployments fall back to the replicated cache."""
+    """Shard the FP8 MiniMax M3 index-K cache on supported SM100 TP4 deployments.
+    "auto" additionally requires a decode capacity >= 6 or max_model_len >= 256K.
+    "off" and unsupported deployments keep the replicated cache."""
 
     backend_per_kind: dict[str, AttentionBackendEnum] = field(default_factory=dict)
     """Per-KV-cache-group attention backend overrides, keyed by

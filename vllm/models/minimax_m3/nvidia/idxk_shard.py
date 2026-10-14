@@ -1,51 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
-"""TP-sharded index-K side cache for the MiniMax-M3 MSA indexer (fp8, TP4).
+"""TP4 token-sharded FP8 index-K cache for the MiniMax-M3 MSA indexer.
 
-Every TP rank otherwise stores and streams the whole replicated index-K cache
-(one 128-dim key per token per sparse layer) while the index heads are already
-TP-split. Sharded, rank ``r`` keeps tokens ``r, r + tp, ...`` of every 128-token
-block as a ``[128 // tp, D]`` page, so the decode index score reads ``1 / tp`` of
-the bytes and the KV pool budgets ``1 / tp`` of the index-K per token.
-
-- Write: the fused qknorm/rope/insert kernel addresses the index cache by flat
-  row (``slot * D``) and skips negative slots, so a remapped slot mapping makes
-  it write only this rank's rows (``shard_slot_mapping``).
-- Decode: every rank computes all index-query heads (the fused qkv GEMM carries
-  the whole index_q projection, replicated), scores its token slice for every
-  head and pushes each head's per-block partial maxima into the owning rank's
-  receive slot (``index_decode_score_shard``). The owner's ``reduce_max`` polls
-  its slots until no sentinel is left (no barrier) and takes the max --
-  bit-identical to the replicated scores for the same index queries, so the
-  top-k is unchanged -- and resets the slots. Whether the wider qkv GEMM gives
-  bit-identical index_q columns depends on the GEMM backend's tiling.
-- Prefill: the prefill requests' pages are gathered and re-interleaved into
-  full pages for the stock ``fmha_sm100`` OnlyScore pass. Each rank copies
-  its rows of those pages into a symmetric staging buffer and signals every
-  peer; each rank then reads all ranks' staged rows over NVLink straight into
-  the interleaved order (``PageGather``, two launches per layer). Steps with
-  more pages than the staging buffer holds (or ranks whose staging set-up
-  failed) use the NCCL all_gather + re-interleave.
-
-Slot reuse needs no barrier: the layers rotate over receive slot sets so that a
-set is reused two invocations later at the earliest, and a rank writes
-invocation ``k + 2`` only after it has read every rank's invocation ``k + 1``
-pushes, which those ranks issued after finishing (and resetting) ``k``.
-
-Opt-in through ``--attention-config '{"minimax_m3_index_k_tp_shard": ...}'``:
-
-- ``"off"`` (default): the replicated index-K cache.
-- ``"on"``: shard whenever the deployment is supported (below).
-- ``"auto"``: shard a supported deployment when ``max_num_active_seqs`` (else
-  ``max_num_seqs``) >= 6, or when ``max_model_len`` >= 256k tokens. At decode
-  batch 1-5 the exchange's fixed cost is only repaid by long contexts, where
-  the replicated score streams far more bytes.
-
-Supported: TP4 on an SM100-family GPU (Blackwell), the MSA indexer
-(``topk_blocks == 16``) with an fp8 index-K cache, no decode/prefill context
-parallelism, no MTP drafter sharing the sparse layers, and a working
-``torch.distributed._symmetric_memory`` rendezvous on the TP group (all ranks
-fall back together otherwise). Anything else keeps the replicated cache.
+Rank r stores tokens r, r + 4, ... of each block and scores all index heads.
+Decode pushes partial block maxima to the head owner, which reduces and resets
+its receive slots. Prefill gathers full pages for the existing score kernel.
 """
 
 from __future__ import annotations
@@ -60,15 +19,10 @@ from vllm.triton_utils import tl, triton
 
 logger = init_logger(__name__)
 
-# Smallest decode batch cap where the cut idec bytes beat the exchange cost.
+# Auto-mode thresholds; small decode batches need longer contexts to amortize
+# the exchange. Small-batch overrides increase CTAs per request.
 MIN_ACTIVE_SEQS = 6
-# Below that cap, the smallest max_model_len that turns the shard on: at decode
-# batch 1 the sharded score + exchange beats the replicated score from ~200k
-# tokens of context on, and the gap grows with context.
 LONG_CONTEXT_MIN_LEN = 256 * 1024
-# Score-kernel split (CTAs per request) of a small-cap deployment's decode
-# batches of 1 and 2 requests (B300 sweep over 64k-560k contexts); larger
-# batches keep the default.
 SMALL_BATCH_SPLITS = {1: 512, 2: 256}
 BLOCK = 128
 SUPPORTED_TP = 4
@@ -106,11 +60,7 @@ def resolve_shard(
     indexer_kv_dtype: str,
     topk_blocks: int,
 ) -> int:
-    """TP shard factor of the index-K cache (1 keeps it replicated).
-
-    Depends only on the config (identical on every rank) plus a symmetric
-    memory set-up that all ranks agree on.
-    """
+    """Return the shard factor, or 1 for unsupported/disabled deployments."""
     mode = vllm_config.attention_config.minimax_m3_index_k_tp_shard
     if mode == "off":
         return 1
@@ -154,7 +104,6 @@ def _unsupported_reason(
     indexer_kv_dtype: str,
     topk_blocks: int,
 ) -> str | None:
-    """Why this deployment cannot shard the index-K cache (None if it can)."""
     tp = get_tensor_model_parallel_world_size()
     if tp != SUPPORTED_TP:
         return f"needs tensor_parallel_size={SUPPORTED_TP} (got {tp})"
@@ -162,7 +111,6 @@ def _unsupported_reason(
         current_platform.is_cuda() and current_platform.is_device_capability_family(100)
     ):
         return "needs an SM100-family (Blackwell) GPU"
-    # The MSA indexer (fmha_sm100 top-16) with an fp8 index cache only.
     if topk_blocks != 16:
         return f"needs the MSA indexer (topk_blocks=16, got {topk_blocks})"
     if indexer_kv_dtype not in ("fp8", "fp8_e4m3"):
@@ -220,8 +168,7 @@ def get_comm(
 
 
 def _init_page_gather(vllm_config: VllmConfig) -> None:
-    """Collectively set up the one-sided prefill page gather (``PageGather``);
-    every rank keeps the NCCL gather if any rank fails."""
+    """Use NCCL gather on every rank if symmetric staging is unavailable."""
     global _GATHER
     from vllm.distributed.parallel_state import get_tp_group
 
@@ -260,14 +207,11 @@ class IdxKShardComm:
         group = get_tp_group()
         self.world = group.world_size
         self.rank = group.rank_in_group
-        self.num_heads = total_index_heads
         self.hpr = total_index_heads // self.world
         self.max_decode_tokens = (
             vllm_config.scheduler_config.max_num_seqs
             * _max_decode_query_len(vllm_config)
         )
-        # Small-cap deployments (sharded for long contexts) spread a 1-2
-        # request decode batch over more CTAs per request.
         self.small_batch_splits = (
             SMALL_BATCH_SPLITS
             if _decode_batch_cap(vllm_config) < MIN_ACTIVE_SEQS
@@ -300,19 +244,15 @@ class IdxKShardComm:
             self.max_decode_tokens,
         )
 
-    def decode_split(self, batch: int) -> int | None:
-        """Score-kernel split for a decode batch of ``batch`` requests (None
-        keeps the kernel's default)."""
-        return self.small_batch_splits.get(batch)
-
     def register_layer(self) -> int:
         """Ordinal of a sharded indexer layer (layers run in ordinal order)."""
         self.num_layers += 1
         return self.num_layers - 1
 
     def slot_set(self, ordinal: int) -> int:
-        """Receive slot set of a layer: consecutive invocations, including the
-        last layer followed by the first, never share a set."""
+        """Alternate slot sets across layers and steps. Before reusing a set,
+        each rank has consumed its peers' next pushes, issued after their reset.
+        """
         n = self.num_layers
         if n % 2 == 0:
             return ordinal % 2
@@ -496,7 +436,7 @@ class PageGather:
     ) -> torch.Tensor | None:
         """Full ``[P, 128, D]`` pages, or None when the step does not fit."""
         num_pages = pages.numel()
-        num_blocks, rows, dim = kv_shard.shape
+        _, rows, dim = kv_shard.shape
         if (
             num_pages == 0
             or num_pages > GATHER_MAX_PAGES
@@ -653,10 +593,8 @@ def decode_score(
     score_out: torch.Tensor,
     ordinal: int,
 ) -> None:
-    """Exact per-block decode index scores of this rank's heads from the
-    sharded cache. ``index_q`` is ``[nd, num_heads, D]`` (every index head);
-    ``score_out`` is the ``[nd, hpr, tiles]`` unified-score view; ``ordinal``
-    is the layer's ``register_layer`` ordinal."""
+    """Score all index heads on the local shard, then reduce this rank's heads
+    into score_out[decode_token, local_head, block]."""
     from vllm.models.minimax_m3.nvidia.ops.index_decode_score_shard import (
         DEFAULT_SPLIT_K,
         minimax_m3_index_decode_score_shard_cutedsl,
@@ -666,7 +604,7 @@ def decode_score(
     assert comm is not None
     nd = index_q.shape[0]
     slot_set = comm.slot_set(ordinal)
-    split_k = comm.decode_split(block_table.shape[0]) or DEFAULT_SPLIT_K
+    split_k = comm.small_batch_splits.get(block_table.shape[0], DEFAULT_SPLIT_K)
     minimax_m3_index_decode_score_shard_cutedsl(
         index_q,
         kv_shard,
@@ -681,12 +619,3 @@ def decode_score(
         split_k,
     )
     comm.reduce_max(nd, seq_lens, decode_query_len, slot_set, score_out)
-
-
-def shard_factor_from_spec(kv_cache_spec) -> int:
-    """Shard factor encoded in an index-cache spec (1 when replicated)."""
-    content = getattr(kv_cache_spec, "state_content_bytes", None)
-    if content is None:
-        return 1
-    full = kv_cache_spec.head_size * kv_cache_spec.dtype.itemsize
-    return full // content
