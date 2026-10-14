@@ -95,7 +95,7 @@ class AttentionConfig:
     indexer_cache_sharding: IndexerCacheSharding = "off"
     """Shard the indexer cache across TP ranks on supported backends.
     "auto" uses backend-specific selection criteria; "on" requests sharding
-    wherever supported. Currently implemented by the MiniMax M3 MSA backend."""
+    wherever supported."""
 
     indexer_sparse_logits: bool = False
     """DeepSeek V4.1 two-level indexer: score only the candidate blocks with
