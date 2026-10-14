@@ -61,7 +61,7 @@ def resolve_shard(
     topk_blocks: int,
 ) -> int:
     """Return the shard factor, or 1 for unsupported/disabled deployments."""
-    mode = vllm_config.attention_config.minimax_m3_index_k_tp_shard
+    mode = vllm_config.attention_config.indexer_cache_sharding
     if mode == "off":
         return 1
     unsupported = _unsupported_reason(
