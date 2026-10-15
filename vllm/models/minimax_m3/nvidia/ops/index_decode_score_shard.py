@@ -1,11 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
-"""Decode index scores for TP4-sharded FP8 keys, with 32 full key rows per page.
-
-Each rank scores all index heads and pushes partial block maxima to each head's
-owner. Cross-rank reduction lives in idxk_shard. Dot products use the replicated
-kernel's FP8-to-FP16 conversion and MMA order.
-"""
+"""Decode index scores over TP4-sharded FP8 keys, pushing maxima to head owners."""
 
 from functools import cache
 
@@ -23,15 +18,11 @@ from vllm.models.minimax_m3.nvidia.ops.index_decode_score import (
     _fp8_to_f16_mma_fragments,
 )
 
-# Tokens per KV block (== M3 sparse block == score tile).
 BLOCK = 128
-# Shard page rows: one MMA warp (32 rows) per page.
-ROWS = 32
+ROWS = 32  # Local token rows per block, handled by one MMA warp.
 SUPPORTED_TP = BLOCK // ROWS
-# Requests' super-tiles of 4 pages are split over this many CTAs per request.
 DEFAULT_SPLIT_K = 128
-# Tile dim of a receive slot (== the unified score buffer's, 1M tokens).
-MAX_K_TILES = 8192
+MAX_K_TILES = 8192  # Matches the unified score buffer.
 
 
 @dsl_user_op
@@ -59,7 +50,7 @@ def _store_relaxed_sys_v4_f32(
 
 
 class IndexDecodeScoreShardKernel:
-    PAGES = 4  # shard pages (score tiles) per pipeline stage, one per MMA warp
+    PAGES = 4  # Shard pages per pipeline stage.
     BAR_MMA = 1
     num_stages = 2
 
@@ -119,9 +110,7 @@ class IndexDecodeScoreShardKernel:
             cta_tiler=(MAX_DQL, num_heads, head_dim),
         )
 
-        # One TMA box per shard page; a stage holds PAGES pages back to back,
-        # i.e. the same [128, 128 B] swizzled tile as the replicated kernel.
-        # Page p of stage s is buffer s * PAGES + p.
+        # Page p of stage s occupies buffer s * PAGES + p.
         sK_layout = cute.make_layout(
             (1, ROWS, (elems, head_dim // elems), self.PAGES * num_stages),
             stride=(0, elems, (1, ROWS * elems), ROWS * head_dim),
@@ -159,7 +148,6 @@ class IndexDecodeScoreShardKernel:
         buf,
         t_max,
     ):
-        tid, _, _ = cute.arch.thread_idx()
         batch_id, split_id, _ = cute.arch.block_idx()
         _, split_k, _ = cute.arch.grid_dim()
         warp_id = cute.arch.make_warp_uniform(cute.arch.warp_idx())
@@ -190,14 +178,12 @@ class IndexDecodeScoreShardKernel:
         sQ_tma = cute.make_tensor(
             sK[0, None, None, 0].iterator, layout=Q_tma.smem_layout.outer
         )
-        q_tma_elems = row_elems
         sQ = cute.coalesce(
             cute.group_modes(sQ_tma, 0, 2),
-            target_profile=(BLOCK_Q, (q_tma_elems, head_dim // q_tma_elems)),
+            target_profile=(BLOCK_Q, (row_elems, head_dim // row_elems)),
         )
 
-        # Per-super-tile maxima [column, page]: a column's 4 tiles are adjacent
-        # in the receive slot, so one 16 B store pushes them.
+        # Keep each column's four page maxima contiguous for a 16 B store.
         EPI_Q = Q_TILES * MMA_N
         epi_buffer = smem.allocate_tensor(
             Float32, cute.make_layout((EPI_Q, PAGES), stride=(PAGES, 1)), 16
@@ -242,7 +228,6 @@ class IndexDecodeScoreShardKernel:
                 with cute.arch.elect_one():
                     Q_size = BLOCK_Q * head_dim * (dtype.width // 8)
                     cute.arch.mbarrier_arrive_and_expect_tx(tma_full_mbar, Q_size)
-                # Mask extra query columns before stores when runtime DQL < MAX_DQL.
                 simple_tma_copy(Q_tma.atom, gQ_tile, sQ_tma, tma_full_mbar)
 
                 tma_stage = (tma_stage + 1) % num_stages
@@ -257,8 +242,7 @@ class IndexDecodeScoreShardKernel:
                             k_mbar, PAGES * page_bytes
                         )
                     for p in cutlass.range_constexpr(PAGES):
-                        # Past the request's last block, reload its last page;
-                        # the causal mask turns such tiles into -inf.
+                        # Reload the last page for padding; causal masking yields -inf.
                         tile = super_id * PAGES + p
                         if tile >= num_blocks:
                             tile = num_blocks - 1
@@ -276,8 +260,7 @@ class IndexDecodeScoreShardKernel:
                         tma_parity ^= 1
 
             else:
-                # MMA warps: warp w handles shard page w of every stage,
-                # K[32, head_dim] @ Q[BLOCK_Q, head_dim].T
+                # MMA warp w handles shard page w of each stage.
                 sK_pages = cute.make_tensor(
                     sK.iterator,
                     cute.make_layout(
@@ -407,10 +390,7 @@ class IndexDecodeScoreShardKernel:
                             epi_buffer[q * MMA_N + lane_id * 2 + 1, warp_id] = rScore[1]
                     cute.arch.barrier(barrier_id=self.BAR_MMA, number_of_threads=128)
 
-                    # Push column c's 4 tile maxima (head c // MAX_DQL) as one
-                    # 16 B store into slot [buf, rank, h % HPR, t, 4 * super_id]
-                    # of rank h // HPR. Tiles past the last block of the final
-                    # super-tile are fully masked, so they push -inf.
+                    # Push four page maxima to the head owner; padded pages are -inf.
                     if warp_id == 0 and lane_id < BLOCK_Q:
                         head_id = lane_id // MAX_DQL
                         q_local_pos = lane_id - head_id * MAX_DQL
@@ -487,15 +467,11 @@ def minimax_m3_index_decode_score_shard_cutedsl(
     t_max: int,
     split_k: int = DEFAULT_SPLIT_K,
 ) -> None:
-    """Push the partial block maxima of this rank's index-K shard, for every
-    index head, into the owning ranks' receive slots.
+    """Score all index heads over local keys and push maxima to head owners.
 
-    ``idx_q`` is ``[bs * dql, num_heads, D]`` e4m3 holding every index head;
-    ``index_kv_shard`` is ``[num_pages, 32, D]`` e4m3, page row ``i`` holding
-    token ``i * 4 + rank`` of the block. ``recv_bases`` holds each rank's
-    receive buffer address, laid out ``[bufs, tp, heads_per_rank, t_max,
-    MAX_K_TILES]`` fp32. Tiles below ``cdiv(seq_len, 128)`` rounded up to a
-    multiple of 4 are written (those past the last block are -inf).
+    Local K row i holds token i * 4 + rank. Receive buffers have FP32 layout
+    [bufs, tp, heads_per_rank, t_max, MAX_K_TILES]. Writes cover the valid
+    blocks rounded up to four, with -inf for padding.
     """
     if idx_q.dtype != torch.float8_e4m3fn or index_kv_shard.dtype != idx_q.dtype:
         raise TypeError("sharded index decode score supports FP8 E4M3 only")
