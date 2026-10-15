@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
+import faulthandler
+
 import pytest
 import ray
 import torch
@@ -48,12 +50,75 @@ def _indexer_sharding(monkeypatch, tp_size, pp_size, rank, distributed_init_port
             init_test_distributed_environment(
                 tp_size, pp_size, rank, distributed_init_port
             )
+            _check_initialization_fallback(config, device, rank)
             assert msa.resolve_index_k_shard(config, 4, "fp8", 16) == tp_size
             comm = msa.get_comm()
             assert comm is not None
             assert msa._GATHER is not None
             _check_indexer_forwards(config, device, rank, comm)
         get_tp_group().barrier()
+
+
+def _check_initialization_fallback(config, device, rank):
+    import torch.distributed._symmetric_memory as symm_mem
+
+    from vllm.models.minimax_m3.nvidia import indexer_msa as msa
+    from vllm.models.minimax_m3.nvidia.ops.index_k_gather import (
+        _index_k_pull_pages_kernel,
+    )
+
+    original_empty = symm_mem.empty
+    for failure in ("recv_allocation", "gather_allocation", "gather_compile"):
+        with pytest.MonkeyPatch.context() as m:
+            m.setattr(msa, "_COMM", None)
+            m.setattr(msa, "_COMM_FAILED", False)
+            m.setattr(msa, "_GATHER", None)
+            injected = False
+
+            def fail_allocation(*args, failure=failure, **kwargs):
+                nonlocal injected
+                shape = args[0]
+                if (failure == "recv_allocation" and len(shape) == 5) or (
+                    failure == "gather_allocation" and len(shape) == 1
+                ):
+                    injected = True
+                    raise RuntimeError("injected indexer allocation failure")
+                return original_empty(*args, **kwargs)
+
+            def fail_compile(*args, **kwargs):
+                nonlocal injected
+                injected = True
+                raise RuntimeError("injected indexer compilation failure")
+
+            if rank == 1:
+                if failure == "gather_compile":
+                    m.setattr(_index_k_pull_pages_kernel, "warmup", fail_compile)
+                else:
+                    m.setattr(symm_mem, "empty", fail_allocation)
+
+            # A rank stranded in rendezvous or GPU polling cannot raise a Python
+            # timeout. Exit that worker so Ray reports failure and stops peers.
+            faulthandler.dump_traceback_later(90, exit=True)
+            try:
+                shard = msa.resolve_index_k_shard(config, 4, "fp8", 16)
+                assert injected == (rank == 1)
+                assert msa._GATHER is None
+                if failure == "recv_allocation":
+                    assert shard == 1
+                    assert msa.get_comm() is None
+                    assert msa._COMM_FAILED
+                else:
+                    assert shard == 4
+                    assert msa.get_comm() is not None
+                    local = torch.full(
+                        (1, 32, 128), rank, dtype=torch.uint8, device=device
+                    )
+                    pages = torch.tensor([0], device=device)
+                    full = msa.gather_prefill_pages(local, pages)
+                    expected = torch.arange(128, device=device) % 4
+                    assert torch.equal(full[0, :, 0].long(), expected)
+            finally:
+                faulthandler.cancel_dump_traceback_later()
 
 
 def _check_indexer_forwards(config, device, rank, comm):

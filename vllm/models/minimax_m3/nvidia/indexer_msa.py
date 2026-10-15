@@ -21,6 +21,8 @@ shared with prefill.
 AMD / non-SM100.
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import ClassVar
 
@@ -592,6 +594,28 @@ def _decode_batch_cap(vllm_config: VllmConfig) -> int:
     return getattr(sched, "max_num_active_seqs", None) or sched.max_num_seqs
 
 
+class _IndexKInitError(RuntimeError):
+    pass
+
+
+@contextmanager
+def _local_init() -> Iterator[None]:
+    """Agree on local setup failures before entering peer communication."""
+    from vllm.distributed.parallel_state import get_tp_group
+
+    error = None
+    try:
+        yield
+    except Exception as e:  # noqa: BLE001 - coordinate local setup failures
+        error = e
+    ok = torch.tensor([int(error is None)], dtype=torch.int32, device="cpu")
+    torch.distributed.all_reduce(
+        ok, op=torch.distributed.ReduceOp.MIN, group=get_tp_group().cpu_group
+    )
+    if not int(ok.item()):
+        raise _IndexKInitError(f"Local initialization failed: {error!r}") from error
+
+
 def get_comm(
     vllm_config: VllmConfig | None = None, total_index_heads: int = 0
 ) -> "IndexKShardComm | None":
@@ -599,45 +623,27 @@ def get_comm(
     global _COMM, _COMM_FAILED
     if _COMM is not None or _COMM_FAILED or vllm_config is None:
         return _COMM
-    from vllm.distributed.parallel_state import get_tp_group
-
-    comm, error = None, None
     try:
         comm = IndexKShardComm(vllm_config, total_index_heads)
-    except Exception as e:  # noqa: BLE001 - every rank falls back together
-        error = e
-    ok = torch.tensor([int(comm is not None)], dtype=torch.int32)
-    torch.distributed.all_reduce(
-        ok, op=torch.distributed.ReduceOp.MIN, group=get_tp_group().cpu_group
-    )
-    if not int(ok.item()):
+    except _IndexKInitError as error:
         logger.warning(
             "MiniMax M3 index-K sharding disabled: symmetric memory set-up failed (%r)",
             error,
         )
         _COMM_FAILED = True
         return None
-    _COMM = comm
     _init_page_gather(vllm_config)
+    _COMM = comm
     return _COMM
 
 
 def _init_page_gather(vllm_config: VllmConfig) -> None:
     """Use NCCL gather on every rank if symmetric staging is unavailable."""
     global _GATHER
-    from vllm.distributed.parallel_state import get_tp_group
-
     sparse_cfg = vllm_config.model_config.hf_text_config.sparse_attention_config
-    gather, error = None, None
     try:
         gather = PageGather(int(sparse_cfg["sparse_index_dim"]))
-    except Exception as e:  # noqa: BLE001 - every rank falls back together
-        error = e
-    ok = torch.tensor([int(gather is not None)], dtype=torch.int32)
-    torch.distributed.all_reduce(
-        ok, op=torch.distributed.ReduceOp.MIN, group=get_tp_group().cpu_group
-    )
-    if not int(ok.item()):
+    except _IndexKInitError as error:
         logger.warning(
             "MiniMax M3 index-K symmetric page gather disabled (%r); "
             "prefill pages use the NCCL all_gather",
@@ -655,47 +661,52 @@ class IndexKShardComm:
     """
 
     def __init__(self, vllm_config: VllmConfig, total_index_heads: int) -> None:
-        import torch.distributed._symmetric_memory as symm_mem
-
         from vllm.distributed.parallel_state import get_tp_group
 
-        group = get_tp_group()
-        self.world = group.world_size
-        self.rank = group.rank_in_group
-        self.hpr = total_index_heads // self.world
-        self.max_decode_tokens = (
-            vllm_config.scheduler_config.max_num_seqs
-            * _max_decode_query_len(vllm_config)
-        )
-        self.small_batch_splits = (
-            SMALL_BATCH_SPLITS
-            if _decode_batch_cap(vllm_config) < MIN_ACTIVE_SEQS
-            else {}
-        )
-        self.device = torch.device("cuda", torch.accelerator.current_device_index())
-        shape = (
-            NUM_SLOT_SETS,
-            self.world,
-            self.hpr,
-            self.max_decode_tokens,
-            MAX_K_TILES,
-        )
-        recv = symm_mem.empty(shape, dtype=torch.int32, device=self.device)
-        recv.fill_(SENTINEL)
-        handle = symm_mem.rendezvous(recv, group.device_group.group_name)
-        assert handle is not None
-        self.recv, self.handle = recv, handle
-        bases = [int(p) for p in handle.buffer_ptrs]
-        assert bases[self.rank] == recv.data_ptr()
-        self.recv_bases = torch.tensor(bases, dtype=torch.int64, device=self.device)
-        self.errors = torch.zeros(1, dtype=torch.int32, device=self.device)
-        self.num_layers = 0
-        torch.accelerator.synchronize(self.device)
-        handle.barrier()
+        with _local_init():
+            import torch.distributed._symmetric_memory as symm_mem
+
+            group = get_tp_group()
+            self.world = group.world_size
+            self.rank = group.rank_in_group
+            self.hpr = total_index_heads // self.world
+            self.max_decode_tokens = (
+                vllm_config.scheduler_config.max_num_seqs
+                * _max_decode_query_len(vllm_config)
+            )
+            self.small_batch_splits = (
+                SMALL_BATCH_SPLITS
+                if _decode_batch_cap(vllm_config) < MIN_ACTIVE_SEQS
+                else {}
+            )
+            self.device = torch.device("cuda", torch.accelerator.current_device_index())
+            shape = (
+                NUM_SLOT_SETS,
+                self.world,
+                self.hpr,
+                self.max_decode_tokens,
+                MAX_K_TILES,
+            )
+            self.recv = symm_mem.empty(shape, dtype=torch.int32, device=self.device)
+            self.recv.fill_(SENTINEL)
+            self.recv_bases = torch.empty(
+                self.world, dtype=torch.int64, device=self.device
+            )
+            self.errors = torch.zeros(1, dtype=torch.int32, device=self.device)
+            self.num_layers = 0
+            torch.accelerator.synchronize(self.device)
+        handle = symm_mem.rendezvous(self.recv, group.device_group.group_name)
+        with _local_init():
+            assert handle is not None
+            self.handle = handle
+            bases = [int(p) for p in handle.buffer_ptrs]
+            assert bases[self.rank] == self.recv.data_ptr()
+            self.recv_bases.copy_(torch.tensor(bases, dtype=torch.int64, device="cpu"))
+            torch.accelerator.synchronize(self.device)
         logger.info_once(
             "MiniMax M3 index-K shard exchange: %.1f MiB symmetric receive slots "
             "(max %d decode tokens)",
-            recv.numel() * 4 / (1 << 20),
+            self.recv.numel() * 4 / (1 << 20),
             self.max_decode_tokens,
         )
 
@@ -738,58 +749,87 @@ class PageGather:
     """
 
     def __init__(self, index_dim: int) -> None:
-        import torch.distributed._symmetric_memory as symm_mem
-
         from vllm.distributed.parallel_state import get_tp_group
 
-        group = get_tp_group()
-        self.world = group.world_size
-        self.rank = group.rank_in_group
-        self.row_words = index_dim // 4
-        self.page_words = ROWS * self.row_words
-        assert index_dim % 16 == 0
-        self.device = torch.device("cuda", torch.accelerator.current_device_index())
-        name = group.device_group.group_name
-        stage = symm_mem.empty(
-            (GATHER_STAGES, GATHER_MAX_PAGES, self.page_words),
-            dtype=torch.int32,
-            device=self.device,
-        )
-        stage_handle = symm_mem.rendezvous(stage, name)
-        flags = symm_mem.empty((self.world,), dtype=torch.int64, device=self.device)
-        flags.zero_()
-        flags_handle = symm_mem.rendezvous(flags, name)
-        assert stage_handle is not None and flags_handle is not None
-        assert int(stage_handle.buffer_ptrs[self.rank]) == stage.data_ptr()
-        assert int(flags_handle.buffer_ptrs[self.rank]) == flags.data_ptr()
-        self.stage, self.flags = stage, flags
-        self.handles = (stage_handle, flags_handle)
-        self.stage_bases = torch.tensor(
-            [int(p) for p in stage_handle.buffer_ptrs],
-            dtype=torch.int64,
-            device=self.device,
-        )
-        self.flag_bases = torch.tensor(
-            [int(p) for p in flags_handle.buffer_ptrs],
-            dtype=torch.int64,
-            device=self.device,
-        )
-        self.counter = torch.zeros(1, dtype=torch.int64, device=self.device)
-        self.epoch = GATHER_EPOCH0
-        torch.accelerator.synchronize(self.device)
-        stage_handle.barrier()
-        # Compile both kernels now (every rank, collectively), not mid-step.
-        dummy = torch.zeros((2, ROWS, index_dim), dtype=torch.uint8, device=self.device)
-        pages = torch.arange(2, dtype=torch.int64, device=self.device)
-        for _ in range(GATHER_STAGES):
-            self.gather(dummy, pages)
-        torch.accelerator.synchronize(self.device)
-        stage_handle.barrier()
+        with _local_init():
+            import torch.distributed._symmetric_memory as symm_mem
+
+            from vllm.models.minimax_m3.nvidia.ops.index_k_gather import (
+                _index_k_pull_pages_kernel,
+                _index_k_stage_pages_kernel,
+            )
+
+            group = get_tp_group()
+            self.world = group.world_size
+            self.rank = group.rank_in_group
+            self.row_words = index_dim // 4
+            self.page_words = ROWS * self.row_words
+            assert index_dim % 16 == 0
+            self.device = torch.device("cuda", torch.accelerator.current_device_index())
+            name = group.device_group.group_name
+            self.stage = symm_mem.empty(
+                (GATHER_STAGES, GATHER_MAX_PAGES, self.page_words),
+                dtype=torch.int32,
+                device=self.device,
+            )
+            self.flags = symm_mem.empty(
+                (self.world,), dtype=torch.int64, device=self.device
+            )
+            self.flags.zero_()
+            self.stage_bases = torch.empty(
+                self.world, dtype=torch.int64, device=self.device
+            )
+            self.flag_bases = torch.empty_like(self.stage_bases)
+            self.counter = torch.zeros(1, dtype=torch.int64, device=self.device)
+            self.epoch = GATHER_EPOCH0
+            # Compile/load without peer polling; only pointer dtypes matter.
+            _index_k_stage_pages_kernel.warmup(
+                self.stage,
+                self.page_words,
+                self.flags,
+                self.stage,
+                self.counter,
+                2,
+                self.flag_bases,
+                self.rank,
+                self.epoch,
+                W=self.world,
+                PAGE_WORDS=self.page_words,
+                num_warps=4,
+                grid=(2,),
+            )._init_handles()
+            _index_k_pull_pages_kernel.warmup(
+                self.flags,
+                self.epoch,
+                self.stage_bases,
+                0,
+                self.stage,
+                W=self.world,
+                ROWS=ROWS,
+                ROW_WORDS=self.row_words,
+                num_warps=8,
+                grid=(2,),
+            )._init_handles()
+            torch.accelerator.synchronize(self.device)
+        stage_handle = symm_mem.rendezvous(self.stage, name)
+        flags_handle = symm_mem.rendezvous(self.flags, name)
+        with _local_init():
+            assert stage_handle is not None and flags_handle is not None
+            assert int(stage_handle.buffer_ptrs[self.rank]) == self.stage.data_ptr()
+            assert int(flags_handle.buffer_ptrs[self.rank]) == self.flags.data_ptr()
+            self.handles = (stage_handle, flags_handle)
+            self.stage_bases.copy_(
+                torch.tensor(stage_handle.buffer_ptrs, dtype=torch.int64, device="cpu")
+            )
+            self.flag_bases.copy_(
+                torch.tensor(flags_handle.buffer_ptrs, dtype=torch.int64, device="cpu")
+            )
+            torch.accelerator.synchronize(self.device)
         logger.info_once(
             "MiniMax M3 index-K prefill pages gathered one-sided over symmetric "
             "memory: %d x %.1f MiB staging (up to %d pages per step)",
             GATHER_STAGES,
-            stage[0].numel() * 4 / (1 << 20),
+            self.stage[0].numel() * 4 / (1 << 20),
             GATHER_MAX_PAGES,
         )
 
