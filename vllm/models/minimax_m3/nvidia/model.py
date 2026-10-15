@@ -87,7 +87,7 @@ from vllm.models.minimax_m3.common.sparse_attention import (
     select_main_backend_and_impl_cls,
 )
 from vllm.models.minimax_m3.common.vision_tower import MiniMaxVLVisionModel
-from vllm.models.minimax_m3.nvidia import idxk_shard
+from vllm.models.minimax_m3.nvidia import index_k_shard
 from vllm.multimodal import MULTIMODAL_REGISTRY
 from vllm.sequence import IntermediateTensors
 from vllm.utils.torch_utils import kv_cache_dtype_str_to_dtype
@@ -450,7 +450,7 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
         self.indexer_kv_dtype = vllm_config.attention_config.resolve_indexer_kv_dtype(
             "bf16"
         )
-        self.index_k_shard = idxk_shard.resolve_shard(
+        self.index_k_shard = index_k_shard.resolve_shard(
             vllm_config,
             self.total_idx_heads,
             self.indexer_kv_dtype,

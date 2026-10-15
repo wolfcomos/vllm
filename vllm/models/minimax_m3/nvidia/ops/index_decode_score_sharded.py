@@ -49,7 +49,7 @@ def _store_relaxed_sys_v4_f32(
     )
 
 
-class IndexDecodeScoreShardKernel:
+class IndexDecodeScoreShardedKernel:
     PAGES = 4  # Shard pages per pipeline stage.
     BAR_MMA = 1
     num_stages = 2
@@ -432,7 +432,7 @@ class IndexDecodeScoreShardKernel:
         block_table = make_fake_tensor(Int32, (bs, cute.sym_int()), divisibility=1)
         recv_bases = make_fake_tensor(Int64, (SUPPORTED_TP,), divisibility=1)
         seq_lens = make_fake_tensor(Int32, (bs,), divisibility=1)
-        kernel = IndexDecodeScoreShardKernel(
+        kernel = IndexDecodeScoreShardedKernel(
             num_heads,
             max_decode_query_len,
             split_k,
@@ -454,7 +454,7 @@ class IndexDecodeScoreShardKernel:
         )
 
 
-def minimax_m3_index_decode_score_shard_cutedsl(
+def minimax_m3_index_decode_score_sharded_cutedsl(
     idx_q: torch.Tensor,
     index_kv_shard: torch.Tensor,
     block_table: torch.Tensor,
@@ -483,7 +483,7 @@ def minimax_m3_index_decode_score_shard_cutedsl(
     assert num_heads * max_decode_query_len <= 32
     assert 0 <= rank < SUPPORTED_TP and num_heads % SUPPORTED_TP == 0
     assert total_tokens <= t_max
-    kernel = IndexDecodeScoreShardKernel.compile(
+    kernel = IndexDecodeScoreShardedKernel.compile(
         num_heads,
         max_decode_query_len,
         split_k,

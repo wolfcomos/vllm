@@ -43,7 +43,7 @@ GATHER_STAGES = 2
 # Epochs start above int32 so the kernels' epoch argument never changes type.
 GATHER_EPOCH0 = 1 << 32
 
-_COMM: IdxKShardComm | None = None
+_COMM: IndexKShardComm | None = None
 _COMM_FAILED = False
 _GATHER: PageGather | None = None
 
@@ -139,7 +139,7 @@ def _decode_batch_cap(vllm_config: VllmConfig) -> int:
 
 def get_comm(
     vllm_config: VllmConfig | None = None, total_index_heads: int = 0
-) -> IdxKShardComm | None:
+) -> IndexKShardComm | None:
     """Process-wide receive buffers; created (collectively) on first use."""
     global _COMM, _COMM_FAILED
     if _COMM is not None or _COMM_FAILED or vllm_config is None:
@@ -148,7 +148,7 @@ def get_comm(
 
     comm, error = None, None
     try:
-        comm = IdxKShardComm(vllm_config, total_index_heads)
+        comm = IndexKShardComm(vllm_config, total_index_heads)
     except Exception as e:  # noqa: BLE001 - every rank falls back together
         error = e
     ok = torch.tensor([int(comm is not None)], dtype=torch.int32)
@@ -192,7 +192,7 @@ def _init_page_gather(vllm_config: VllmConfig) -> None:
     _GATHER = gather
 
 
-class IdxKShardComm:
+class IndexKShardComm:
     """Symmetric receive slots shared by every sharded indexer layer.
 
     ``recv[set, src, h, t, tile]`` (fp32 bits, sentinel -1) holds rank ``src``'s
@@ -274,7 +274,7 @@ class IdxKShardComm:
         """
         assert nd <= self.max_decode_tokens
         nchunk = triton.cdiv(MAX_K_TILES, REDUCE_CHUNK)
-        _idxk_max_reduce_kernel[(nd * self.hpr, nchunk)](
+        _index_k_max_reduce_kernel[(nd * self.hpr, nchunk)](
             self.recv[slot_set],
             out,
             out.stride(0),
@@ -297,7 +297,7 @@ class IdxKShardComm:
 
 
 @triton.jit
-def _idxk_max_reduce_kernel(
+def _index_k_max_reduce_kernel(
     recv_ptr,
     out_ptr,
     out_stride_t,
@@ -361,10 +361,10 @@ class PageGather:
     requested page; ``flags[src]`` holds the last gather epoch whose rows rank
     ``src`` has staged. Gather epoch ``e`` uses stage ``s = e % GATHER_STAGES``:
 
-    1. ``_idxk_stage_pages_kernel`` copies this rank's rows of the pages into
+    1. ``_index_k_stage_pages_kernel`` copies this rank's rows of the pages into
        ``stage[s]``; its last program stores ``e`` into every rank's
        ``flags[rank]`` (release, system scope).
-    2. ``_idxk_pull_pages_kernel`` waits until every ``flags[src] >= e``
+    2. ``_index_k_pull_pages_kernel`` waits until every ``flags[src] >= e``
        (acquire) and copies row ``i`` of every rank's ``stage[s, p]`` to row
        ``i * tp + src`` of full page ``p``: the bytes the NCCL all_gather +
        re-interleave produce.
@@ -450,7 +450,7 @@ class PageGather:
         kv_words = kv_shard.view(torch.uint8).view(torch.int32)
         self.epoch += 1
         stage = (self.epoch % GATHER_STAGES) * GATHER_MAX_PAGES * self.page_words
-        _idxk_stage_pages_kernel[(num_pages,)](
+        _index_k_stage_pages_kernel[(num_pages,)](
             kv_words,
             kv_words.stride(0),
             pages,
@@ -469,7 +469,7 @@ class PageGather:
             dtype=torch.uint8,
             device=kv_shard.device,
         )
-        _idxk_pull_pages_kernel[(num_pages,)](
+        _index_k_pull_pages_kernel[(num_pages,)](
             self.flags,
             self.epoch,
             self.stage_bases,
@@ -486,7 +486,7 @@ class PageGather:
 # Runtime integers are not value-specialized: a new divisibility class would
 # otherwise JIT-compile mid-step on one rank while its peers wait in the pull.
 @triton.jit(do_not_specialize=["kv_page_stride", "num_programs", "rank", "epoch"])
-def _idxk_stage_pages_kernel(
+def _index_k_stage_pages_kernel(
     kv_ptr,
     kv_page_stride,
     pages_ptr,
@@ -516,7 +516,7 @@ def _idxk_stage_pages_kernel(
 
 
 @triton.jit(do_not_specialize=["epoch", "stage_off"])
-def _idxk_pull_pages_kernel(
+def _index_k_pull_pages_kernel(
     flags_ptr,
     epoch,
     stage_bases_ptr,
@@ -595,9 +595,9 @@ def decode_score(
 ) -> None:
     """Score all index heads on the local shard, then reduce this rank's heads
     into score_out[decode_token, local_head, block]."""
-    from vllm.models.minimax_m3.nvidia.ops.index_decode_score_shard import (
+    from vllm.models.minimax_m3.nvidia.ops.index_decode_score_sharded import (
         DEFAULT_SPLIT_K,
-        minimax_m3_index_decode_score_shard_cutedsl,
+        minimax_m3_index_decode_score_sharded_cutedsl,
     )
 
     comm = get_comm()
@@ -605,7 +605,7 @@ def decode_score(
     nd = index_q.shape[0]
     slot_set = comm.slot_set(ordinal)
     split_k = comm.small_batch_splits.get(block_table.shape[0], DEFAULT_SPLIT_K)
-    minimax_m3_index_decode_score_shard_cutedsl(
+    minimax_m3_index_decode_score_sharded_cutedsl(
         index_q,
         kv_shard,
         block_table,

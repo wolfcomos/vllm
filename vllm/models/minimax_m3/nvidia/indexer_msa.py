@@ -39,7 +39,7 @@ from vllm.models.minimax_m3.common.indexer import (
 from vllm.models.minimax_m3.common.ops.index_topk import (
     minimax_m3_index_decode_score,
 )
-from vllm.models.minimax_m3.nvidia import idxk_shard
+from vllm.models.minimax_m3.nvidia import index_k_shard
 from vllm.models.minimax_m3.nvidia.ops import minimax_m3_index_decode_score_cutedsl
 from vllm.v1.attention.backend import (
     AttentionBackend,
@@ -131,13 +131,13 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
         super().__init__(kv_cache_spec, layer_names, vllm_config, device)
         content = kv_cache_spec.state_content_bytes
         full = kv_cache_spec.head_size * kv_cache_spec.dtype.itemsize
-        self.idxk_tp = 1 if content is None else full // content
-        self.idxk_rank = 0
-        self.idxk_slots: torch.Tensor | None = None
-        if self.idxk_tp > 1:
-            self.idxk_rank = get_tensor_model_parallel_rank()
+        self.index_k_tp = 1 if content is None else full // content
+        self.index_k_rank = 0
+        self.index_k_slots: torch.Tensor | None = None
+        if self.index_k_tp > 1:
+            self.index_k_rank = get_tensor_model_parallel_rank()
             max_capture = vllm_config.compilation_config.max_cudagraph_capture_size or 0
-            self.idxk_slots = torch.full(
+            self.index_k_slots = torch.full(
                 (
                     max(
                         vllm_config.scheduler_config.max_num_batched_tokens, max_capture
@@ -184,12 +184,12 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
         assert num_decode_tokens + num_prefill_tokens == num_tokens
 
         index_slot_mapping = None
-        if self.idxk_slots is not None:
-            index_slot_mapping = idxk_shard.shard_slot_mapping(
+        if self.index_k_slots is not None:
+            index_slot_mapping = index_k_shard.shard_slot_mapping(
                 common_attn_metadata.slot_mapping,
-                self.idxk_rank,
-                self.idxk_tp,
-                self.idxk_slots,
+                self.index_k_rank,
+                self.index_k_tp,
+                self.index_k_slots,
             )
 
         # Context (prefix) lengths into the stable cudagraph buffer.
@@ -261,7 +261,7 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
             valid = cols[None, :] < nvp[lo:hi].to(block_table.device)[:, None]
             page_table = block_table[lo:hi][valid].to(torch.int32)
             gather_pages = None
-            if self.idxk_tp > 1:
+            if self.index_k_tp > 1:
                 # Gather shared prefix pages once and remap the page table.
                 gather_pages, page_table = torch.unique(
                     page_table, sorted=True, return_inverse=True
@@ -307,13 +307,13 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-        self.idxk_ordinal = -1
-        self.idxk_rank = 0
+        self.index_k_ordinal = -1
+        self.index_k_rank = 0
         if self.index_cache.tp_shard > 1:
-            comm = idxk_shard.get_comm()
+            comm = index_k_shard.get_comm()
             assert comm is not None
-            self.idxk_ordinal = comm.register_layer()
-            self.idxk_rank = comm.rank
+            self.index_k_ordinal = comm.register_layer()
+            self.index_k_rank = comm.rank
 
     def forward(
         self,
@@ -354,7 +354,7 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
             # max_decode_query_len avoids recompiles across runtime decode sizes.
             # Fall back when the flattened Q tile gets too wide for this kernel.
             if sharded:
-                idxk_shard.decode_score(
+                index_k_shard.decode_score(
                     index_q[:nd],
                     kv,
                     d.block_table,
@@ -362,7 +362,7 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
                     d.decode_query_len,
                     d.max_decode_query_len,
                     unified_scores[:nd],
-                    self.idxk_ordinal,
+                    self.index_k_ordinal,
                 )
             else:
                 decode_score = (
@@ -390,9 +390,11 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
             p = md.prefill_msa
             prefill_q = index_q[nd:]
             if p.gather_pages is not None:
-                kv = idxk_shard.gather_prefill_pages(kv, p.gather_pages)
+                kv = index_k_shard.gather_prefill_pages(kv, p.gather_pages)
                 h = self.num_index_heads
-                prefill_q = prefill_q[:, self.idxk_rank * h : (self.idxk_rank + 1) * h]
+                prefill_q = prefill_q[
+                    :, self.index_k_rank * h : (self.index_k_rank + 1) * h
+                ]
                 prefill_q = prefill_q.contiguous()
             # Index-K cache (num_blocks, 128, D) -> paged MQA (num_blocks,1,128,D).
             k_pages = kv.view(kv.shape[0], 1, PAGE_SIZE, self.index_head_dim)
