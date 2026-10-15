@@ -27,6 +27,7 @@ def _indexer_sharding(monkeypatch, tp_size, pp_size, rank, distributed_init_port
         device = torch.device(f"cuda:{rank}")
         torch.accelerator.set_device_index(device)
         config = create_vllm_config(
+            model_name="Qwen/Qwen3-0.6B",
             tensor_parallel_size=tp_size,
             block_size=128,
             max_model_len=4096,
