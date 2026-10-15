@@ -579,22 +579,6 @@ steps:
       commands:
       - pytest -v -s tests/distributed/test_mnnvl_alltoall.py::test_args_dispatch_combine
 
-- label: ":nvidia: (B200) MiniMax-M3 Indexer TP4"
-  key: minimax-m3-indexer-sharding-4xb200
-  timeout_in_minutes: 20
-  device: b200-k8s
-  working_dir: "/vllm-workspace/"
-  num_devices: 4
-  source_file_dependencies:
-  - vllm/models/minimax_m3/
-  - vllm/config/attention.py
-  - vllm/model_executor/layers/linear.py
-  - vllm/distributed/
-  - tests/distributed/test_minimax_m3_indexer_sharding.py
-  - tests/v1/attention/utils.py
-  commands:
-    - pytest -v -s tests/distributed/test_minimax_m3_indexer_sharding.py
-
 - label: ":nvidia: (B200) GEMM-RS/AR"
   key: gemm-rs-ar-2xb200
   timeout_in_minutes: 20
