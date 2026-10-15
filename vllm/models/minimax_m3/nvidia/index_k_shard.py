@@ -15,7 +15,7 @@ from vllm.config import VllmConfig
 from vllm.distributed import get_tensor_model_parallel_world_size
 from vllm.logger import init_logger
 from vllm.platforms import current_platform
-from vllm.triton_utils import tl, triton
+from vllm.triton_utils import triton
 
 logger = init_logger(__name__)
 
@@ -272,6 +272,10 @@ class IndexKShardComm:
         this rank's heads, ``n(t)`` = the request's block count rounded up to a
         multiple of 4; resets the consumed slots. ``out`` is ``[nd, hpr, tiles]``.
         """
+        from vllm.models.minimax_m3.nvidia.ops.index_decode_score_sharded import (
+            _index_k_max_reduce_kernel,
+        )
+
         assert nd <= self.max_decode_tokens
         nchunk = triton.cdiv(MAX_K_TILES, REDUCE_CHUNK)
         _index_k_max_reduce_kernel[(nd * self.hpr, nchunk)](
@@ -294,64 +298,6 @@ class IndexKShardComm:
             # tail (programmatic dependent launch hides the launch latency).
             launch_pdl=True,
         )
-
-
-@triton.jit
-def _index_k_max_reduce_kernel(
-    recv_ptr,
-    out_ptr,
-    out_stride_t,
-    out_stride_h,
-    seq_lens_ptr,
-    decode_query_len,
-    err_ptr,
-    recv_stride_src,
-    recv_stride_h,
-    recv_stride_t,
-    W: tl.constexpr,
-    HPR: tl.constexpr,
-    CHUNK: tl.constexpr,
-    SPIN: tl.constexpr,
-):
-    th = tl.program_id(0)
-    t = th // HPR
-    hh = th % HPR
-    # The score kernel pushes whole 4-tile super-tiles (-inf past the last
-    # block, which the unified buffer already holds there).
-    seq_len = tl.load(seq_lens_ptr + t // decode_query_len)
-    n_tiles = (seq_len + 511) // 512 * 4
-    start = tl.program_id(1) * CHUNK
-    if start < n_tiles:
-        offs = start + tl.arange(0, CHUNK)
-        mask = offs < n_tiles
-        row = recv_ptr + hh * recv_stride_h + t * recv_stride_t + offs
-        # Poll every source's slot until none holds the sentinel.
-        acc = tl.full([CHUNK], float("-inf"), tl.float32)
-        pending = tl.full([], 1, tl.int32)
-        spins = tl.full([], 0, tl.int32)
-        while (pending > 0) & (spins < SPIN):
-            acc = tl.full([CHUNK], float("-inf"), tl.float32)
-            missing = tl.zeros([CHUNK], dtype=tl.int32)
-            for p in tl.static_range(W):
-                bits = tl.load(
-                    row + p * recv_stride_src, mask=mask, other=0, volatile=True
-                )
-                missing += (bits == -1).to(tl.int32)
-                acc = tl.maximum(acc, bits.to(tl.float32, bitcast=True))
-            pending = tl.sum(missing, axis=0)
-            spins += 1
-        if pending > 0:
-            tl.atomic_add(err_ptr, 1)
-            tl.inline_asm_elementwise(
-                "trap; mov.u32 $0, 0;", "=r", [], dtype=tl.int32, is_pure=False, pack=1
-            )
-        tl.store(out_ptr + t * out_stride_t + hh * out_stride_h + offs, acc, mask=mask)
-        for p in tl.static_range(W):
-            tl.store(
-                row + p * recv_stride_src,
-                tl.full([CHUNK], -1, tl.int32),
-                mask=mask,
-            )
 
 
 class PageGather:
@@ -435,6 +381,11 @@ class PageGather:
         self, kv_shard: torch.Tensor, pages: torch.Tensor
     ) -> torch.Tensor | None:
         """Full ``[P, 128, D]`` pages, or None when the step does not fit."""
+        from vllm.models.minimax_m3.nvidia.ops.index_k_gather import (
+            _index_k_pull_pages_kernel,
+            _index_k_stage_pages_kernel,
+        )
+
         num_pages = pages.numel()
         _, rows, dim = kv_shard.shape
         if (
@@ -481,68 +432,6 @@ class PageGather:
             num_warps=8,
         )
         return full.view(kv_shard.dtype)
-
-
-# Runtime integers are not value-specialized: a new divisibility class would
-# otherwise JIT-compile mid-step on one rank while its peers wait in the pull.
-@triton.jit(do_not_specialize=["kv_page_stride", "num_programs", "rank", "epoch"])
-def _index_k_stage_pages_kernel(
-    kv_ptr,
-    kv_page_stride,
-    pages_ptr,
-    stage_ptr,
-    counter_ptr,
-    num_programs,
-    flag_bases_ptr,
-    rank,
-    epoch,
-    W: tl.constexpr,
-    PAGE_WORDS: tl.constexpr,
-):
-    p = tl.program_id(0)
-    page = tl.load(pages_ptr + p).to(tl.int64)
-    offs = tl.arange(0, PAGE_WORDS)
-    vals = tl.load(kv_ptr + page * kv_page_stride + offs)
-    tl.store(stage_ptr + p.to(tl.int64) * PAGE_WORDS + offs, vals)
-    # Every thread's rows are stored before this program counts itself done;
-    # the last one resets the counter and publishes the epoch to every rank.
-    tl.debug_barrier()
-    done = tl.atomic_add(counter_ptr, 1, sem="acq_rel", scope="sys")
-    if done == num_programs - 1:
-        tl.atomic_xchg(counter_ptr, 0, sem="relaxed", scope="gpu")
-        for r in tl.static_range(W):
-            peer = tl.load(flag_bases_ptr + r).to(tl.pointer_type(tl.int64))
-            tl.atomic_xchg(peer + rank, epoch, sem="release", scope="sys")
-
-
-@triton.jit(do_not_specialize=["epoch", "stage_off"])
-def _index_k_pull_pages_kernel(
-    flags_ptr,
-    epoch,
-    stage_bases_ptr,
-    stage_off,
-    out_ptr,
-    W: tl.constexpr,
-    ROWS: tl.constexpr,
-    ROW_WORDS: tl.constexpr,
-):
-    # No timeout: reading a peer's staging buffer before it publishes would
-    # return stale rows, so a stalled peer stalls this rank instead.
-    for r in tl.static_range(W):
-        seen = tl.atomic_add(flags_ptr + r, 0, sem="acquire", scope="sys")
-        while seen < epoch:
-            seen = tl.atomic_add(flags_ptr + r, 0, sem="acquire", scope="sys")
-    tl.debug_barrier()
-    p = tl.program_id(0).to(tl.int64)
-    j = tl.arange(0, ROWS * W)
-    i = j // W
-    src_rank = j % W
-    c = tl.arange(0, ROW_WORDS)
-    base = tl.load(stage_bases_ptr + src_rank).to(tl.pointer_type(tl.int32))
-    row = stage_off + p * (ROWS * ROW_WORDS) + i * ROW_WORDS
-    vals = tl.load(base[:, None] + row[:, None] + c[None, :])
-    dst = out_ptr + p * (ROWS * W * ROW_WORDS) + j[:, None] * ROW_WORDS + c[None, :]
-    tl.store(dst, vals)
 
 
 def shard_slot_mapping(

@@ -17,6 +17,7 @@ from vllm.cute_utils import EVICT_FIRST, mma_sync, simple_tma_copy
 from vllm.models.minimax_m3.nvidia.ops.index_decode_score import (
     _fp8_to_f16_mma_fragments,
 )
+from vllm.triton_utils import tl, triton
 
 BLOCK = 128
 ROWS = 32  # Local token rows per block, handled by one MMA warp.
@@ -490,3 +491,61 @@ def minimax_m3_index_decode_score_sharded_cutedsl(
         head_dim,
     )
     kernel(idx_q, index_kv_shard, block_table, recv_bases, seq_lens, rank, buf, t_max)
+
+
+@triton.jit
+def _index_k_max_reduce_kernel(
+    recv_ptr,
+    out_ptr,
+    out_stride_t,
+    out_stride_h,
+    seq_lens_ptr,
+    decode_query_len,
+    err_ptr,
+    recv_stride_src,
+    recv_stride_h,
+    recv_stride_t,
+    W: tl.constexpr,
+    HPR: tl.constexpr,
+    CHUNK: tl.constexpr,
+    SPIN: tl.constexpr,
+):
+    th = tl.program_id(0)
+    t = th // HPR
+    hh = th % HPR
+    # The score kernel pushes whole 4-tile super-tiles (-inf past the last
+    # block, which the unified buffer already holds there).
+    seq_len = tl.load(seq_lens_ptr + t // decode_query_len)
+    n_tiles = (seq_len + 511) // 512 * 4
+    start = tl.program_id(1) * CHUNK
+    if start < n_tiles:
+        offs = start + tl.arange(0, CHUNK)
+        mask = offs < n_tiles
+        row = recv_ptr + hh * recv_stride_h + t * recv_stride_t + offs
+        # Poll every source's slot until none holds the sentinel.
+        acc = tl.full([CHUNK], float("-inf"), tl.float32)
+        pending = tl.full([], 1, tl.int32)
+        spins = tl.full([], 0, tl.int32)
+        while (pending > 0) & (spins < SPIN):
+            acc = tl.full([CHUNK], float("-inf"), tl.float32)
+            missing = tl.zeros([CHUNK], dtype=tl.int32)
+            for p in tl.static_range(W):
+                bits = tl.load(
+                    row + p * recv_stride_src, mask=mask, other=0, volatile=True
+                )
+                missing += (bits == -1).to(tl.int32)
+                acc = tl.maximum(acc, bits.to(tl.float32, bitcast=True))
+            pending = tl.sum(missing, axis=0)
+            spins += 1
+        if pending > 0:
+            tl.atomic_add(err_ptr, 1)
+            tl.inline_asm_elementwise(
+                "trap; mov.u32 $0, 0;", "=r", [], dtype=tl.int32, is_pure=False, pack=1
+            )
+        tl.store(out_ptr + t * out_stride_t + hh * out_stride_h + offs, acc, mask=mask)
+        for p in tl.static_range(W):
+            tl.store(
+                row + p * recv_stride_src,
+                tl.full([CHUNK], -1, tl.int32),
+                mask=mask,
+            )
