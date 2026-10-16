@@ -201,7 +201,6 @@ def test_minimax_m3_sparse_decode_fp8_split_scales(
         current_platform.is_cuda() and current_platform.is_device_capability_family(100)
     ):
         pytest.skip("Sparse decode tuning requires SM100-family GPUs")
-    monkeypatch.setenv("VLLM_MINIMAX_M3_SPARSE_DECODE_FP16_DOT", str(int(fp16_dot)))
     monkeypatch.setenv("VLLM_BATCH_INVARIANT", str(int(batch_invariant)))
     total_q, num_blocks = 40, 16
     torch.manual_seed(2)
@@ -241,6 +240,7 @@ def test_minimax_m3_sparse_decode_fp8_split_scales(
             decode_query_len=1,
             k_scale=ks,
             v_scale=vs,
+            fp16_dot=fp16_dot,
         )
 
     torch.testing.assert_close(got, ref, rtol=2e-2, atol=2e-2)

@@ -638,6 +638,7 @@ def minimax_m3_sparse_attn_decode(
     decode_query_len: int,
     k_scale: torch.Tensor | None = None,
     v_scale: torch.Tensor | None = None,
+    fp16_dot: bool = False,
 ) -> None:
     """GQA block-sparse attention for decode (split-K over the top-k blocks)."""
     total_q, num_heads, head_dim = q.shape
@@ -688,7 +689,7 @@ def minimax_m3_sparse_attn_decode(
         and q.dtype == torch.bfloat16
         and use_fp8
         and kv_scale_mode != _KV_SCALE_PER_TOKEN_HEAD
-        and envs.VLLM_MINIMAX_M3_SPARSE_DECODE_FP16_DOT
+        and fp16_dot
     )
     # split-K over the selected blocks; chunk count is shape-constant (cuda graph).
     if tune_decode:
