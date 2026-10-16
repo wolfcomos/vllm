@@ -31,8 +31,8 @@ DTYPE = torch.bfloat16
 HEAD_DIM = 128
 NUM_KV_HEADS = 1
 NUM_HEADS = 2
-K_SCALE = 0.25
-V_SCALE = 0.5
+K_SCALE = 0.3
+V_SCALE = 0.7
 
 
 def _scale_tensors(mode: str, num_blocks: int):
@@ -133,18 +133,29 @@ def test_minimax_m3_sparse_prefill_fp8_kv_scales(scale_mode: str):
 
 
 @pytest.mark.parametrize("scale_mode", ["scalar", "per_token_head"])
+@pytest.mark.parametrize("num_blocks", [1, 16])
+@pytest.mark.parametrize(
+    "fp16_dot,batch_invariant", [(False, False), (True, False), (True, True)]
+)
 @torch.inference_mode()
-def test_minimax_m3_sparse_decode_fp8_kv_scales(scale_mode: str):
-    total_q = 2
-    num_blocks = 1
+def test_minimax_m3_sparse_decode_fp8_kv_scales(
+    scale_mode: str, num_blocks: int, fp16_dot: bool, batch_invariant: bool, monkeypatch
+):
+    monkeypatch.setenv("VLLM_MINIMAX_M3_SPARSE_DECODE_FP16_DOT", str(int(fp16_dot)))
+    monkeypatch.setenv("VLLM_BATCH_INVARIANT", str(int(batch_invariant)))
+    total_q = 2 if num_blocks == 1 else 40
     torch.manual_seed(2)
     q = torch.randn(total_q, NUM_HEADS, HEAD_DIM, dtype=DTYPE, device=DEVICE) * 0.1
     kv_fp8, kv_dequant = _make_kv_cache(num_blocks, seed=3)
     k_scale, v_scale = _scale_tensors(scale_mode, num_blocks)
 
-    topk = torch.zeros(NUM_KV_HEADS, total_q, 1, dtype=torch.int32, device=DEVICE)
-    block_table = torch.zeros(total_q, 1, dtype=torch.int32, device=DEVICE)
-    seq_lens = torch.tensor([64, 128], dtype=torch.int32, device=DEVICE)
+    blocks = torch.arange(num_blocks, dtype=torch.int32, device=DEVICE)
+    topk = blocks.expand(NUM_KV_HEADS, total_q, -1).contiguous()
+    block_table = blocks.expand(total_q, -1).contiguous()
+    seq_lens = torch.full(
+        (total_q,), num_blocks * SPARSE_BLOCK_SIZE, dtype=torch.int32, device=DEVICE
+    )
+    seq_lens[0] -= SPARSE_BLOCK_SIZE // 2
     got = torch.empty_like(q)
     ref = torch.empty_like(q)
     unscaled = torch.empty_like(q)
@@ -186,4 +197,6 @@ def test_minimax_m3_sparse_decode_fp8_kv_scales(scale_mode: str):
     )
 
     torch.testing.assert_close(got, ref, rtol=2e-2, atol=2e-2)
-    assert not torch.allclose(unscaled, ref, rtol=1e-1, atol=1e-1)
+    assert (got.float() - ref.float()).abs().mean() < (
+        unscaled.float() - ref.float()
+    ).abs().mean() * 0.1

@@ -284,6 +284,8 @@ def _gqa_sparse_decode_kernel(
     USE_FP8: tl.constexpr,  # fp8 KV cache: dequantize K/V to q.dtype on load
     KV_SCALE_MODE: tl.constexpr,  # 0: none, 1: scalar, 2: [kv_head, token]
     USE_PDL: tl.constexpr,
+    FP16_DOT: tl.constexpr,
+    HOIST_SCALES: tl.constexpr,
 ):
     sm_scale_log2e = sm_scale * 1.4426950409
     # split-K over the topk dimension: pid(0) folds (query-token, chunk).
@@ -331,6 +333,10 @@ def _gqa_sparse_decode_kernel(
         mask=hd_mask,
         other=0.0,
     )
+    if FP16_DOT:
+        q = tl.clamp(q.to(tl.float32), -65504.0, 65504.0).to(tl.float16)
+    if HOIST_SCALES:
+        sm_scale_log2e = sm_scale_log2e * tl.load(k_scale_ptr)
 
     cur_idx_ptr = idx_base + chunk_start_topk * stride_tk
     for _ in tl.range(chunk_start_topk, chunk_end_topk):
@@ -356,7 +362,7 @@ def _gqa_sparse_decode_kernel(
         )
         if USE_FP8:
             k = k.to(q.dtype)
-            if KV_SCALE_MODE == 1:
+            if KV_SCALE_MODE == 1 and not HOIST_SCALES:
                 k = (k * tl.load(k_scale_ptr)).to(q.dtype)
             elif KV_SCALE_MODE == 2:
                 k_scale = tl.load(
@@ -387,7 +393,7 @@ def _gqa_sparse_decode_kernel(
         )
         if USE_FP8:
             v = v.to(q.dtype)
-            if KV_SCALE_MODE == 1:
+            if KV_SCALE_MODE == 1 and not HOIST_SCALES:
                 v = (v * tl.load(v_scale_ptr)).to(q.dtype)
             elif KV_SCALE_MODE == 2:
                 v_scale = tl.load(
@@ -409,6 +415,8 @@ def _gqa_sparse_decode_kernel(
     # Empty chunks for active rows must store zero output; otherwise the merge
     # can hit 0 * NaN. All-empty padded rows may still produce NaNs in merge.
     scale = tl.where(lse_i > float("-inf"), tl.exp2(m_i - lse_i), tl.zeros_like(lse_i))
+    if HOIST_SCALES:
+        scale = scale * tl.load(v_scale_ptr)
     acc_o = acc_o * scale[:, None]
     tl.store(
         o_ptr
@@ -663,12 +671,26 @@ def minimax_m3_sparse_attn_decode(
     # launch_pdl was specified but unrecognised"). Only pass it when PDL is
     # actually supported -- on ROCm use_pdl is always False, so it's omitted.
     pdl_launch = {"launch_pdl": True} if use_pdl else {}
-    # split-K over the selected blocks; chunk count is shape-constant (cuda graph).
-    if (
+    tune_decode = (
         current_platform.is_cuda()
         and current_platform.is_device_capability_family(100)
         and not envs.VLLM_BATCH_INVARIANT
-    ):
+    )
+    hoist_scales = (
+        tune_decode
+        and q.dtype == torch.bfloat16
+        and use_fp8
+        and kv_scale_mode == _KV_SCALE_SCALAR
+    )
+    fp16_dot = (
+        tune_decode
+        and q.dtype == torch.bfloat16
+        and use_fp8
+        and kv_scale_mode != _KV_SCALE_PER_TOKEN_HEAD
+        and envs.VLLM_MINIMAX_M3_SPARSE_DECODE_FP16_DOT
+    )
+    # split-K over the selected blocks; chunk count is shape-constant (cuda graph).
+    if tune_decode:
         # Target two CTAs per SM without rounding the split count to a power of two.
         resident = 2 * num_compute_units(q.device.index or 0)
         target = max(1, min(max_topk, resident // max(1, total_q * num_kv_heads)))
@@ -727,6 +749,8 @@ def minimax_m3_sparse_attn_decode(
         USE_FP8=use_fp8,
         KV_SCALE_MODE=kv_scale_mode,
         USE_PDL=use_pdl,
+        FP16_DOT=fp16_dot,
+        HOIST_SCALES=hoist_scales,
         **pdl_launch,
     )
     merge_grid = (total_q, num_heads)
