@@ -1,0 +1,32 @@
+{
+  "diagnostic_only": true,
+  "primary_comparison_replaced": false,
+  "original_baseline": {
+    "correct": 1259,
+    "questions": 1319,
+    "accuracy": 0.954510993176649,
+    "invalid": 0,
+    "truncated": 0
+  },
+  "baseline_repeat": {
+    "correct": 1259,
+    "questions": 1319,
+    "accuracy": 0.954510993176649,
+    "invalid": 0,
+    "truncated": 0
+  },
+  "accuracy_delta_percentage_points": 0.0,
+  "lost_correct_ids": [],
+  "gained_correct_ids": [],
+  "mcnemar_exact_two_sided_p": 1.0,
+  "same_output_token_sequences": 1319,
+  "same_answers": 1319,
+  "same_full_prediction_rows": 1319,
+  "same_pilot": true,
+  "same_full_dispatch": true,
+  "baseline_cache_bytes_unchanged": true,
+  "prediction_sha256": {
+    "baseline": "94805822845471fd9e864d93739b5f1144c89a949e9567c8c0c35826f914377a",
+    "baseline-repeat": "94805822845471fd9e864d93739b5f1144c89a949e9567c8c0c35826f914377a"
+  }
+}

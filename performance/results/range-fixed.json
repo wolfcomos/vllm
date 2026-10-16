@@ -1,0 +1,283 @@
+{
+  "scope": "Diagnostic extreme finite FP8 cache values; not model-distribution evidence",
+  "source_sha256": {
+    "baseline": "d986e377713589d08c564730ddc277278478fb772bacdcda6ef0bbdf05718f59",
+    "candidate": "2641f1340335f58cc0789e3e2764fa1bed16ee600e905b3eb6560dfbbf6ba8fe"
+  },
+  "device": "NVIDIA GB200 / SM100 / 152 SM",
+  "rows": [
+    {
+      "dtype": "torch.float8_e4m3fn",
+      "mode": "bounded",
+      "max_finite_cache": 448.0,
+      "k_scale": 1.0,
+      "v_scale": 1.0,
+      "outputs": {
+        "baseline": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 448.0,
+          "max": 448.0
+        },
+        "candidate_bf16": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 448.0,
+          "max": 448.0
+        },
+        "candidate_fp16": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 448.0,
+          "max": 448.0
+        }
+      },
+      "bf16_matches_baseline_bitwise": true
+    },
+    {
+      "dtype": "torch.float8_e4m3fn",
+      "mode": "k_overflow",
+      "max_finite_cache": 448.0,
+      "k_scale": 200.0,
+      "v_scale": 1.0,
+      "outputs": {
+        "baseline": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 0.25,
+          "max": 0.25
+        },
+        "candidate_bf16": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 0.25,
+          "max": 0.25
+        },
+        "candidate_fp16": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 0.25,
+          "max": 0.25
+        }
+      },
+      "bf16_matches_baseline_bitwise": true
+    },
+    {
+      "dtype": "torch.float8_e4m3fn",
+      "mode": "v_overflow",
+      "max_finite_cache": 448.0,
+      "k_scale": 1.0,
+      "v_scale": 200.0,
+      "outputs": {
+        "baseline": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 89600.0,
+          "max": 89600.0
+        },
+        "candidate_bf16": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 89600.0,
+          "max": 89600.0
+        },
+        "candidate_fp16": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 65536.0,
+          "max": 65536.0
+        }
+      },
+      "bf16_matches_baseline_bitwise": true
+    },
+    {
+      "dtype": "torch.float8_e4m3fn",
+      "mode": "both_overflow",
+      "max_finite_cache": 448.0,
+      "k_scale": 200.0,
+      "v_scale": 200.0,
+      "outputs": {
+        "baseline": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 89600.0,
+          "max": 89600.0
+        },
+        "candidate_bf16": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 89600.0,
+          "max": 89600.0
+        },
+        "candidate_fp16": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 65536.0,
+          "max": 65536.0
+        }
+      },
+      "bf16_matches_baseline_bitwise": true
+    },
+    {
+      "dtype": "torch.float8_e5m2",
+      "mode": "bounded",
+      "max_finite_cache": 57344.0,
+      "k_scale": 1.0,
+      "v_scale": 1.0,
+      "outputs": {
+        "baseline": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 57344.0,
+          "max": 57344.0
+        },
+        "candidate_bf16": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 57344.0,
+          "max": 57344.0
+        },
+        "candidate_fp16": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 57344.0,
+          "max": 57344.0
+        }
+      },
+      "bf16_matches_baseline_bitwise": true
+    },
+    {
+      "dtype": "torch.float8_e5m2",
+      "mode": "k_overflow",
+      "max_finite_cache": 57344.0,
+      "k_scale": 2.0,
+      "v_scale": 1.0,
+      "outputs": {
+        "baseline": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 0.25,
+          "max": 0.25
+        },
+        "candidate_bf16": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 0.25,
+          "max": 0.25
+        },
+        "candidate_fp16": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 0.25,
+          "max": 0.25
+        }
+      },
+      "bf16_matches_baseline_bitwise": true
+    },
+    {
+      "dtype": "torch.float8_e5m2",
+      "mode": "v_overflow",
+      "max_finite_cache": 57344.0,
+      "k_scale": 1.0,
+      "v_scale": 2.0,
+      "outputs": {
+        "baseline": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 114688.0,
+          "max": 114688.0
+        },
+        "candidate_bf16": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 114688.0,
+          "max": 114688.0
+        },
+        "candidate_fp16": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 65536.0,
+          "max": 65536.0
+        }
+      },
+      "bf16_matches_baseline_bitwise": true
+    },
+    {
+      "dtype": "torch.float8_e5m2",
+      "mode": "both_overflow",
+      "max_finite_cache": 57344.0,
+      "k_scale": 2.0,
+      "v_scale": 2.0,
+      "outputs": {
+        "baseline": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 114688.0,
+          "max": 114688.0
+        },
+        "candidate_bf16": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 114688.0,
+          "max": 114688.0
+        },
+        "candidate_fp16": {
+          "nan": 0,
+          "inf": 0,
+          "finite": 2048,
+          "total": 2048,
+          "min": 65536.0,
+          "max": 65536.0
+        }
+      },
+      "bf16_matches_baseline_bitwise": true
+    }
+  ],
+  "public_export_note": "Device UUID and PCI identifiers removed; diagnostic rows and source hashes unchanged."
+}

@@ -1,0 +1,18 @@
+{
+  "performance/bench_upstream.py": "8e56134c6fea73259a0c5cec545c7d164a8f049f948ce635f33966c1722d97fe",
+  "performance/bench_helpers.py": "be13f8ee7a1359bbdace7bbd61c598f171afdb4a5fa2d9312b621ee120612aa3",
+  "performance/reference_helpers.py": "7a5599653ed9cbf2103de53a76b171c2323f357067362872de866a094659e2a3",
+  "performance/diagnose_fp16_range.py": "15aacb5e30907b71cc87ddadf56194aa63fdf166b80e844931ff4327b4274038",
+  "performance/sources/baseline.py": "d986e377713589d08c564730ddc277278478fb772bacdcda6ef0bbdf05718f59",
+  "performance/sources/candidate.py": "2641f1340335f58cc0789e3e2764fa1bed16ee600e905b3eb6560dfbbf6ba8fe",
+  "gsm8k/run_gsm8k.py": "80809194ae9addc5f59197f6c542c749d55ca33cd77878257af9461dccdb5fef",
+  "gsm8k/gsm8k_cache_seed.py": "c9ec3ba96b9bfca71fb1b8328b4c2dd25b18e1e9378e22e269deb83b447187d7",
+  "gsm8k/compare_gsm8k.py": "b06117d69f1e12ff93091798ea6ffe33e2c672eb78b0cda051d40c405e79ec00",
+  "gsm8k/run_all.sh": "0874557045e9dd6e4922836fee64faeee1f454825ce2f4c2e92b0ad7d96c5ad0",
+  "gsm8k/run_baseline_repeat.sh": "a4745c2cbacf0ce1dfb9b9ce078976caf354001e21ae4edfa8088bbb8011b289",
+  "gsm8k/source-pins.json": "0b83668808046432352f3f6427eaf6b7858dfedcee45c1e6badd684822e86bcb",
+  "attention-tests/run_suites.sh": "460d8a6e6b414853a6187503743c45259fe035b4d6bfba5e3552104c1982c469",
+  "gsm8k/independent-primary-audit.json": "5fc539c31eab9f50dbe317939f8918d6c38d22bee2b51ae9abce483fda9a3526",
+  "LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+  "gsm8k/baseline-stability.json": "523c9c91914ce28c2c843655c3f90990b7a0ffd0c0b66c53e80db39a2f6f5c2e"
+}

@@ -1,0 +1,118 @@
+{
+  "source_baseline": "9731f30a030c545e7f29a8a4ed96b8562be12c88",
+  "source_candidate": "a450316f26fcff8f5715e51c444cd272b9cad12a",
+  "status": "All requested runs and audits complete: overall primary quality gate FAILED because default BF16 regressed. Separate baseline repeat reproduced all 1,319 raw prediction rows exactly.",
+  "original_suites": {
+    "baseline": {
+      "passed": 181,
+      "skipped": 46,
+      "failures": 0,
+      "errors": 0
+    },
+    "candidate": {
+      "passed": 199,
+      "skipped": 46,
+      "failures": 0,
+      "errors": 0
+    }
+  },
+  "operator_benchmark": {
+    "scope": "synthetic; full decode+merge; warm CUDA graph; paired rotated rounds; no scalar-scale hoisting",
+    "paired_rounds": 7,
+    "main_shapes": 24,
+    "edge_shapes": 38,
+    "aggregate": {
+      "candidate_bf16": {
+        "shapes": 24,
+        "geomean_speedup_vs_baseline": 1.1204943064935757,
+        "min_shape_speedup": 0.9888692891403861,
+        "max_shape_speedup": 1.6078819155973463
+      },
+      "candidate_fp16": {
+        "shapes": 24,
+        "geomean_speedup_vs_baseline": 1.1358490738393077,
+        "min_shape_speedup": 0.9283723313097073,
+        "max_shape_speedup": 1.6312518812612384
+      }
+    },
+    "graph_eager_comparisons": 372,
+    "batch_invariant_comparisons": 76,
+    "dtype_fallback_comparisons": 16,
+    "timings_are_not_serving_throughput": true
+  },
+  "gsm8k_primary": {
+    "baseline": {
+      "correct": 1259,
+      "questions": 1319,
+      "accuracy": 0.954510993176649,
+      "invalid": 0,
+      "truncated": 0
+    },
+    "candidate_bf16": {
+      "correct": 1246,
+      "questions": 1319,
+      "accuracy": 0.9446550416982562,
+      "invalid": 0,
+      "truncated": 0,
+      "lost_correct": 28,
+      "gained_correct": 15,
+      "accuracy_delta_percentage_points": -0.9855951478392722,
+      "regression_gate_passed": false,
+      "same_output_token_sequences": 293,
+      "mcnemar_exact_two_sided_p": 0.0659940344557981
+    },
+    "candidate_fp16": {
+      "correct": 1260,
+      "questions": 1319,
+      "accuracy": 0.9552691432903715,
+      "invalid": 0,
+      "truncated": 0,
+      "lost_correct": 16,
+      "gained_correct": 17,
+      "accuracy_delta_percentage_points": 0.0758150113722517,
+      "regression_gate_passed": true,
+      "mcnemar_exact_two_sided_p": 1.0
+    },
+    "overall_regression_gate_passed": false
+  },
+  "autotune_control": {
+    "all_three_modes_rank_files_byte_identical": true,
+    "rank_files": 12,
+    "configs_per_rank": 160,
+    "canonical_sha256": "b752276a50bb749e00a052ce2064ed9afbacf3ce8f7b5b757ecb35484c4d8732",
+    "both_candidates_loaded_configs_per_rank": 160,
+    "all_three_modes_startup_to_generation_hashes_unchanged": true
+  },
+  "baseline_repeat_diagnostic": {
+    "diagnostic_only": true,
+    "primary_comparison_replaced": false,
+    "original_baseline": {
+      "correct": 1259,
+      "questions": 1319,
+      "accuracy": 0.954510993176649,
+      "invalid": 0,
+      "truncated": 0
+    },
+    "baseline_repeat": {
+      "correct": 1259,
+      "questions": 1319,
+      "accuracy": 0.954510993176649,
+      "invalid": 0,
+      "truncated": 0
+    },
+    "accuracy_delta_percentage_points": 0.0,
+    "lost_correct_ids": [],
+    "gained_correct_ids": [],
+    "mcnemar_exact_two_sided_p": 1.0,
+    "same_output_token_sequences": 1319,
+    "same_answers": 1319,
+    "same_full_prediction_rows": 1319,
+    "same_pilot": true,
+    "same_full_dispatch": true,
+    "baseline_cache_bytes_unchanged": true,
+    "prediction_sha256": {
+      "baseline": "94805822845471fd9e864d93739b5f1144c89a949e9567c8c0c35826f914377a",
+      "baseline-repeat": "94805822845471fd9e864d93739b5f1144c89a949e9567c8c0c35826f914377a"
+    }
+  }
+}

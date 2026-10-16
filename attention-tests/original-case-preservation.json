@@ -1,0 +1,28 @@
+{
+  "original_test_ids_preserved": true,
+  "removed_test_ids": [],
+  "added_test_ids": [
+    "test_decode_sparse_attention_correctness[0-1-seq_lens_list2-HND]",
+    "test_decode_sparse_attention_correctness[0-1-seq_lens_list2-NHD]",
+    "test_decode_sparse_attention_correctness[0-4-seq_lens_list2-HND]",
+    "test_decode_sparse_attention_correctness[0-4-seq_lens_list2-NHD]",
+    "test_decode_sparse_attention_correctness[2-1-seq_lens_list2-HND]",
+    "test_decode_sparse_attention_correctness[2-1-seq_lens_list2-NHD]",
+    "test_decode_sparse_attention_correctness[2-4-seq_lens_list2-HND]",
+    "test_decode_sparse_attention_correctness[2-4-seq_lens_list2-NHD]"
+  ],
+  "baseline_skip_reasons": {
+    "MiniMax-M3 balanced decode score is ROCm-only": 15,
+    "MiniMax-M3 fused decode top-k is ROCm-only": 24,
+    "AITER MSA indexer unavailable: needs gfx950 for the fp8 MFMA": 1,
+    "The consolidated packed-SHUFFLE AITER op is ROCm-only": 4,
+    "MiniMax-M3 AITER sparse PA is ROCm-only": 2
+  },
+  "candidate_skip_reasons": {
+    "MiniMax-M3 balanced decode score is ROCm-only": 15,
+    "MiniMax-M3 fused decode top-k is ROCm-only": 24,
+    "AITER MSA indexer unavailable: needs gfx950 for the fp8 MFMA": 1,
+    "The consolidated packed-SHUFFLE AITER op is ROCm-only": 4,
+    "MiniMax-M3 AITER sparse PA is ROCm-only": 2
+  }
+}

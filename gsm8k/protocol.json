@@ -1,0 +1,76 @@
+{
+  "model": {
+    "repository": "nvidia/MiniMax-M3-NVFP4",
+    "revision": "901464083161bf8612a29ff7ad29914cd4ab4a85",
+    "downloaded_files": 107,
+    "weight_shards": 88,
+    "downloaded_bytes": 250137296832,
+    "all_weight_shard_hashes_matched_pinned_lfs_manifest": true
+  },
+  "dataset": {
+    "train_examples": 7473,
+    "test_examples": 1319,
+    "train_fewshot_indices": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "files": {
+      "train.jsonl": {
+        "url": "https://vllm-public-assets.s3.us-west-2.amazonaws.com/ci-datasets/gsm8k/train.jsonl",
+        "sha256": "17f347dc51477c50d4efb83959dbb7c56297aba886e5544ee2aaed3024813465"
+      },
+      "test.jsonl": {
+        "url": "https://vllm-public-assets.s3.us-west-2.amazonaws.com/ci-datasets/gsm8k/test.jsonl",
+        "sha256": "3730d312f6e3440559ace48831e51066acaca737f6eabec99bccb9e4b3c39d14"
+      }
+    }
+  },
+  "prompt_builder": "tests.evals.gsm8k.gsm8k_eval._build_gsm8k_prompts(1319, 5)",
+  "scorer": "tests.evals.gsm8k.gsm8k_eval._score_gsm8k / get_answer_value",
+  "prompts_sha256": "74b700070ea33793d973f6660d067528c88710d7563b14ca7dc847fb78e0728d",
+  "labels_sha256": "bab946abf6921f27f882ecc0b93f31a47ba3cb140e1aef9ce1f62b19707efb46",
+  "baseline_settings": {
+    "model": "/work/models/MiniMax-M3-NVFP4",
+    "language_model_only": true,
+    "revision": "901464083161bf8612a29ff7ad29914cd4ab4a85",
+    "tokenizer_revision": "901464083161bf8612a29ff7ad29914cd4ab4a85",
+    "tensor_parallel_size": 4,
+    "distributed_executor_backend": "mp",
+    "dtype": "bfloat16",
+    "kv_cache_dtype": "fp8",
+    "block_size": 128,
+    "seed": 42,
+    "enforce_eager": true,
+    "max_model_len": 8192,
+    "max_num_seqs": 40,
+    "max_num_batched_tokens": 4096,
+    "kv_cache_memory_bytes": 8589934592,
+    "enable_chunked_prefill": true,
+    "enable_prefix_caching": false,
+    "generation_config": "vllm",
+    "attention_config": {
+      "minimax_m3_msa_decode_backend": "triton",
+      "indexer_kv_dtype": "fp8"
+    },
+    "disable_log_stats": true
+  },
+  "sampling": {
+    "temperature": 0.0,
+    "seed": 42,
+    "max_tokens": 1024,
+    "stop": null
+  },
+  "chat_template_kwargs": {
+    "thinking_mode": "disabled"
+  },
+  "criterion": {
+    "baseline_sanity_floor": 0.8,
+    "max_accuracy_drop": 0.005,
+    "max_invalid_rate": 0.01,
+    "max_truncation_rate": 0.01
+  },
+  "scope": "Primary three-arm pretrained GSM8K comparison. A separately labeled baseline repeat is diagnostic and never replaces the primary baseline."
+}

@@ -1,0 +1,144 @@
+{
+  "baseline": {
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": 0,
+        "failures": 0,
+        "skipped": 46,
+        "tests": 171,
+        "time": 487.569,
+        "passed": 125,
+        "file": "test_minimax_m3.xml",
+        "exitcode": 0
+      },
+      {
+        "name": "pytest",
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 3,
+        "time": 5.448,
+        "passed": 3,
+        "file": "test_minimax_m3_fp8_triton_indexer.xml",
+        "exitcode": 0
+      },
+      {
+        "name": "pytest",
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 49,
+        "time": 484.24,
+        "passed": 49,
+        "file": "test_minimax_m3_msa_cutlass_sparse_decode.xml",
+        "exitcode": 0
+      },
+      {
+        "name": "pytest",
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 4,
+        "time": 10.57,
+        "passed": 4,
+        "file": "test_minimax_m3_sparse_attn_fp8_scale.xml",
+        "exitcode": 0
+      }
+    ],
+    "total_passed": 181,
+    "total_skipped": 46
+  },
+  "candidate": {
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": 0,
+        "failures": 0,
+        "skipped": 46,
+        "tests": 179,
+        "time": 354.66,
+        "passed": 133,
+        "file": "test_minimax_m3.xml",
+        "exitcode": 0
+      },
+      {
+        "name": "pytest",
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 3,
+        "time": 4.095,
+        "passed": 3,
+        "file": "test_minimax_m3_fp8_triton_indexer.xml",
+        "exitcode": 0
+      },
+      {
+        "name": "pytest",
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 49,
+        "time": 430.316,
+        "passed": 49,
+        "file": "test_minimax_m3_msa_cutlass_sparse_decode.xml",
+        "exitcode": 0
+      },
+      {
+        "name": "pytest",
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 14,
+        "time": 20.138,
+        "passed": 14,
+        "file": "test_minimax_m3_sparse_attn_fp8_scale.xml",
+        "exitcode": 0
+      }
+    ],
+    "total_passed": 199,
+    "total_skipped": 46
+  },
+  "source": {
+    "candidate": "a450316f26fcff8f5715e51c444cd272b9cad12a",
+    "baseline": "9731f30a030c545e7f29a8a4ed96b8562be12c88"
+  },
+  "original_case_preservation": {
+    "test_minimax_m3.xml": {
+      "removed": [],
+      "added": [
+        "test_decode_sparse_attention_correctness[0-1-seq_lens_list2-HND]",
+        "test_decode_sparse_attention_correctness[0-1-seq_lens_list2-NHD]",
+        "test_decode_sparse_attention_correctness[0-4-seq_lens_list2-HND]",
+        "test_decode_sparse_attention_correctness[0-4-seq_lens_list2-NHD]",
+        "test_decode_sparse_attention_correctness[2-1-seq_lens_list2-HND]",
+        "test_decode_sparse_attention_correctness[2-1-seq_lens_list2-NHD]",
+        "test_decode_sparse_attention_correctness[2-4-seq_lens_list2-HND]",
+        "test_decode_sparse_attention_correctness[2-4-seq_lens_list2-NHD]"
+      ]
+    },
+    "test_minimax_m3_fp8_triton_indexer.xml": {
+      "removed": [],
+      "added": []
+    },
+    "test_minimax_m3_msa_cutlass_sparse_decode.xml": {
+      "removed": [],
+      "added": []
+    },
+    "test_minimax_m3_sparse_attn_fp8_scale.xml": {
+      "removed": [],
+      "added": [
+        "test_minimax_m3_sparse_decode_fp16_saturates_scaled_kv[False-cache_dtype0-200.0]",
+        "test_minimax_m3_sparse_decode_fp16_saturates_scaled_kv[False-cache_dtype1-2.0]",
+        "test_minimax_m3_sparse_decode_fp16_saturates_scaled_kv[True-cache_dtype0-200.0]",
+        "test_minimax_m3_sparse_decode_fp16_saturates_scaled_kv[True-cache_dtype1-2.0]",
+        "test_minimax_m3_sparse_decode_fp8_split_scales[False-False-per_token_head]",
+        "test_minimax_m3_sparse_decode_fp8_split_scales[False-False-scalar]",
+        "test_minimax_m3_sparse_decode_fp8_split_scales[True-False-per_token_head]",
+        "test_minimax_m3_sparse_decode_fp8_split_scales[True-False-scalar]",
+        "test_minimax_m3_sparse_decode_fp8_split_scales[True-True-per_token_head]",
+        "test_minimax_m3_sparse_decode_fp8_split_scales[True-True-scalar]"
+      ]
+    }
+  }
+}

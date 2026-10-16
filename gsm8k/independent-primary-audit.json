@@ -1,0 +1,40 @@
+{
+  "baseline": {
+    "correct": 1259,
+    "invalid": 0,
+    "truncated": 0,
+    "source_commit": "9731f30a030c545e7f29a8a4ed96b8562be12c88",
+    "predictions_sha256": "94805822845471fd9e864d93739b5f1144c89a949e9567c8c0c35826f914377a"
+  },
+  "bf16": {
+    "correct": 1246,
+    "invalid": 0,
+    "truncated": 0,
+    "source_commit": "a450316f26fcff8f5715e51c444cd272b9cad12a",
+    "predictions_sha256": "2cf280fa74e7c5d7e296d6c544ffdde1aafa2c80d16de459cd6a3e25b8412f95",
+    "lost": 28,
+    "gained": 15,
+    "delta_pp": -0.9855951478392722,
+    "gate_passed": false,
+    "loaded_160_configs": 4
+  },
+  "fp16": {
+    "correct": 1260,
+    "invalid": 0,
+    "truncated": 0,
+    "source_commit": "a450316f26fcff8f5715e51c444cd272b9cad12a",
+    "predictions_sha256": "6c3d62a53b2c0a04e9edc829b65ccc2875090a6db018e682d859394012c42690",
+    "lost": 16,
+    "gained": 17,
+    "delta_pp": 0.0758150113722517,
+    "gate_passed": true,
+    "loaded_160_configs": 4
+  },
+  "cache": {
+    "files": 12,
+    "unique_sha256": [
+      "b752276a50bb749e00a052ce2064ed9afbacf3ce8f7b5b757ecb35484c4d8732"
+    ]
+  },
+  "overall_primary_gate_passed": false
+}
