@@ -22,6 +22,7 @@ import torch
 import vllm.envs as envs
 from vllm.platforms import current_platform
 from vllm.triton_utils import tl, triton
+from vllm.utils.math_utils import cdiv
 from vllm.utils.platform_utils import num_compute_units
 
 # One sparse block == one KV page.
@@ -694,7 +695,7 @@ def minimax_m3_sparse_attn_decode(
         # Target two CTAs per SM without rounding the split count to a power of two.
         resident = 2 * num_compute_units(q.device.index or 0)
         target = max(1, min(max_topk, resident // max(1, total_q * num_kv_heads)))
-        num_topk_chunks = triton.cdiv(max_topk, triton.cdiv(max_topk, target))
+        num_topk_chunks = cdiv(max_topk, cdiv(max_topk, target))
     else:
         TARGET_GRID = 256
         target = max(1, min(max_topk, TARGET_GRID // max(1, total_q * num_kv_heads)))
