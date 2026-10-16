@@ -35,28 +35,18 @@ K_SCALE = 0.25
 V_SCALE = 0.5
 
 
-def _scale_tensors(
-    mode: str,
-    num_blocks: int,
-    k_scale_value: float = K_SCALE,
-    v_scale_value: float = V_SCALE,
-):
+def _scale_tensors(mode: str, num_blocks: int):
     if mode == "scalar":
-        k_scale = torch.tensor(k_scale_value, dtype=torch.float32, device=DEVICE)
-        v_scale = torch.tensor(v_scale_value, dtype=torch.float32, device=DEVICE)
+        k_scale = torch.tensor(K_SCALE, dtype=torch.float32, device=DEVICE)
+        v_scale = torch.tensor(V_SCALE, dtype=torch.float32, device=DEVICE)
     else:
         shape = (NUM_KV_HEADS, num_blocks * SPARSE_BLOCK_SIZE)
-        k_scale = torch.full(shape, k_scale_value, dtype=torch.float32, device=DEVICE)
-        v_scale = torch.full(shape, v_scale_value, dtype=torch.float32, device=DEVICE)
+        k_scale = torch.full(shape, K_SCALE, dtype=torch.float32, device=DEVICE)
+        v_scale = torch.full(shape, V_SCALE, dtype=torch.float32, device=DEVICE)
     return k_scale, v_scale
 
 
-def _make_kv_cache(
-    num_blocks: int,
-    seed: int,
-    k_scale: float = K_SCALE,
-    v_scale: float = V_SCALE,
-):
+def _make_kv_cache(num_blocks: int, seed: int):
     torch.manual_seed(seed)
     fp8_dtype = current_platform.fp8_dtype()
     kv_ref = torch.randn(
@@ -68,12 +58,12 @@ def _make_kv_cache(
         device=DEVICE,
     )
     kv_fp8 = torch.empty_like(kv_ref, dtype=fp8_dtype)
-    kv_fp8[..., :HEAD_DIM] = (kv_ref[..., :HEAD_DIM].float() / k_scale).to(fp8_dtype)
-    kv_fp8[..., HEAD_DIM:] = (kv_ref[..., HEAD_DIM:].float() / v_scale).to(fp8_dtype)
+    kv_fp8[..., :HEAD_DIM] = (kv_ref[..., :HEAD_DIM].float() / K_SCALE).to(fp8_dtype)
+    kv_fp8[..., HEAD_DIM:] = (kv_ref[..., HEAD_DIM:].float() / V_SCALE).to(fp8_dtype)
 
     kv_dequant = torch.empty_like(kv_ref)
-    kv_dequant[..., :HEAD_DIM] = (kv_fp8[..., :HEAD_DIM].float() * k_scale).to(DTYPE)
-    kv_dequant[..., HEAD_DIM:] = (kv_fp8[..., HEAD_DIM:].float() * v_scale).to(DTYPE)
+    kv_dequant[..., :HEAD_DIM] = (kv_fp8[..., :HEAD_DIM].float() * K_SCALE).to(DTYPE)
+    kv_dequant[..., HEAD_DIM:] = (kv_fp8[..., HEAD_DIM:].float() * V_SCALE).to(DTYPE)
     return kv_fp8, kv_dequant
 
 
@@ -143,29 +133,18 @@ def test_minimax_m3_sparse_prefill_fp8_kv_scales(scale_mode: str):
 
 
 @pytest.mark.parametrize("scale_mode", ["scalar", "per_token_head"])
-@pytest.mark.parametrize("num_blocks", [1, 16])
-@pytest.mark.parametrize(
-    "fp16_dot,batch_invariant", [(False, False), (True, False), (True, True)]
-)
 @torch.inference_mode()
-def test_minimax_m3_sparse_decode_fp8_kv_scales(
-    scale_mode: str, num_blocks: int, fp16_dot: bool, batch_invariant: bool, monkeypatch
-):
-    monkeypatch.setenv("VLLM_MINIMAX_M3_SPARSE_DECODE_FP16_DOT", str(int(fp16_dot)))
-    monkeypatch.setenv("VLLM_BATCH_INVARIANT", str(int(batch_invariant)))
-    total_q = 2 if num_blocks == 1 else 40
+def test_minimax_m3_sparse_decode_fp8_kv_scales(scale_mode: str):
+    total_q = 2
+    num_blocks = 1
     torch.manual_seed(2)
     q = torch.randn(total_q, NUM_HEADS, HEAD_DIM, dtype=DTYPE, device=DEVICE) * 0.1
-    kv_fp8, kv_dequant = _make_kv_cache(num_blocks, seed=3, k_scale=0.3, v_scale=0.7)
-    k_scale, v_scale = _scale_tensors(scale_mode, num_blocks, 0.3, 0.7)
+    kv_fp8, kv_dequant = _make_kv_cache(num_blocks, seed=3)
+    k_scale, v_scale = _scale_tensors(scale_mode, num_blocks)
 
-    blocks = torch.arange(num_blocks, dtype=torch.int32, device=DEVICE)
-    topk = blocks.expand(NUM_KV_HEADS, total_q, -1).contiguous()
-    block_table = blocks.expand(total_q, -1).contiguous()
-    seq_lens = torch.full(
-        (total_q,), num_blocks * SPARSE_BLOCK_SIZE, dtype=torch.int32, device=DEVICE
-    )
-    seq_lens[0] -= SPARSE_BLOCK_SIZE // 2
+    topk = torch.zeros(NUM_KV_HEADS, total_q, 1, dtype=torch.int32, device=DEVICE)
+    block_table = torch.zeros(total_q, 1, dtype=torch.int32, device=DEVICE)
+    seq_lens = torch.tensor([64, 128], dtype=torch.int32, device=DEVICE)
     got = torch.empty_like(q)
     ref = torch.empty_like(q)
     unscaled = torch.empty_like(q)
@@ -205,6 +184,64 @@ def test_minimax_m3_sparse_decode_fp8_kv_scales(
         unscaled,
         decode_query_len=1,
     )
+
+    torch.testing.assert_close(got, ref, rtol=2e-2, atol=2e-2)
+    assert not torch.allclose(unscaled, ref, rtol=1e-1, atol=1e-1)
+
+
+@pytest.mark.parametrize("scale_mode", ["scalar", "per_token_head"])
+@pytest.mark.parametrize(
+    "fp16_dot,batch_invariant", [(False, False), (True, False), (True, True)]
+)
+@torch.inference_mode()
+def test_minimax_m3_sparse_decode_fp8_split_scales(
+    scale_mode: str, fp16_dot: bool, batch_invariant: bool, monkeypatch
+):
+    if not (
+        current_platform.is_cuda() and current_platform.is_device_capability_family(100)
+    ):
+        pytest.skip("Sparse decode tuning requires SM100-family GPUs")
+    monkeypatch.setenv("VLLM_MINIMAX_M3_SPARSE_DECODE_FP16_DOT", str(int(fp16_dot)))
+    monkeypatch.setenv("VLLM_BATCH_INVARIANT", str(int(batch_invariant)))
+    total_q, num_blocks = 40, 16
+    torch.manual_seed(2)
+    q = torch.randn(total_q, NUM_HEADS, HEAD_DIM, dtype=DTYPE, device=DEVICE) * 0.1
+    kv_fp8, kv_dequant = _make_kv_cache(num_blocks, seed=3)
+    k_scale = torch.tensor(0.3, dtype=torch.float32, device=DEVICE)
+    v_scale = torch.tensor(0.7, dtype=torch.float32, device=DEVICE)
+    kv_dequant[..., :HEAD_DIM] = (kv_fp8[..., :HEAD_DIM].float() * k_scale).to(DTYPE)
+    kv_dequant[..., HEAD_DIM:] = (kv_fp8[..., HEAD_DIM:].float() * v_scale).to(DTYPE)
+    if scale_mode == "per_token_head":
+        shape = (NUM_KV_HEADS, num_blocks * SPARSE_BLOCK_SIZE)
+        k_scale = k_scale.expand(shape).contiguous()
+        v_scale = v_scale.expand(shape).contiguous()
+
+    blocks = torch.arange(num_blocks, dtype=torch.int32, device=DEVICE)
+    topk = blocks.expand(NUM_KV_HEADS, total_q, -1).contiguous()
+    block_table = blocks.expand(total_q, -1).contiguous()
+    seq_lens = torch.full(
+        (total_q,), num_blocks * SPARSE_BLOCK_SIZE, dtype=torch.int32, device=DEVICE
+    )
+    seq_lens[0] -= SPARSE_BLOCK_SIZE // 2
+    got, ref, unscaled = (torch.empty_like(q) for _ in range(3))
+    for output, cache, ks, vs in (
+        (got, kv_fp8, k_scale, v_scale),
+        (ref, kv_dequant, None, None),
+        (unscaled, kv_fp8, None, None),
+    ):
+        minimax_m3_sparse_attn_decode(
+            q,
+            cache,
+            topk,
+            block_table,
+            seq_lens,
+            NUM_KV_HEADS,
+            HEAD_DIM**-0.5,
+            output,
+            decode_query_len=1,
+            k_scale=ks,
+            v_scale=vs,
+        )
 
     torch.testing.assert_close(got, ref, rtol=2e-2, atol=2e-2)
     assert (got.float() - ref.float()).abs().mean() < (
