@@ -38,6 +38,7 @@ def _live_metadata(
     rows,
     rank,
     FRAGMENT: tl.constexpr,
+    PAGE_SIZE: tl.constexpr,
     BLOCK: tl.constexpr,
 ):
     row = tl.program_id(0) * BLOCK + tl.arange(0, BLOCK)
@@ -58,11 +59,19 @@ def _live_metadata(
     )
     visible = tl.minimum(pos + 1, seq).to(tl.int32)
     last = (pos // 128).to(tl.int32)
-    local = visible // 128 + (visible % 128 > rank * FRAGMENT)
+    local = visible // PAGE_SIZE + (visible % PAGE_SIZE > rank * FRAGMENT)
+    forced_column = last // (PAGE_SIZE // 128)
+    forced_owned = (last % (PAGE_SIZE // 128) == rank * FRAGMENT // 128) & (
+        forced_column < local
+    )
     tl.store(positions + row, tl.where(live, pos, 0), row < rows)
     tl.store(active + row, live, row < rows)
     tl.store(local_nvalid + row, tl.where(live, local, 0), row < rows)
-    tl.store(local_forced + row, tl.where(live & (last < local), last, -1), row < rows)
+    tl.store(
+        local_forced + row,
+        tl.where(live & forced_owned, forced_column, -1),
+        row < rows,
+    )
     tl.store(global_nvalid + row, tl.where(live, last + 1, 0), row < rows)
     tl.store(forced + row, tl.where(live, last, -1), row < rows)
     tl.store(n_ordinary + row, tl.where(live, tl.minimum(last, 15), 0), row < rows)
@@ -182,7 +191,9 @@ def _device_plan(
     tl.store(header + slot * 4 + 3, t0)
 
 
-def prepare_icp_metadata(step: Any, rank: int, tp: int) -> None:
+def prepare_icp_metadata(
+    step: Any, rank: int, tp: int, *, page_size: int = 128
+) -> None:
     """Refresh stable live buffers once per scheduler step, before graph replay."""
     args = step.writer_args
     rows = step.token_capacity
@@ -202,7 +213,8 @@ def prepare_icp_metadata(step: Any, rank: int, tp: int) -> None:
         args["icp_num_reqs"],
         rows,
         rank,
-        FRAGMENT=128 // tp,
+        FRAGMENT=page_size // tp,
+        PAGE_SIZE=page_size,
         BLOCK=32,
     )
     if "icp_plan_segments" not in args:

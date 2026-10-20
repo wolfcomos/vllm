@@ -59,6 +59,8 @@ def nvfp4_kv_cache_slots(
 class MSACutlassDecodeMetadata:
     plan: Any
     page_table: torch.Tensor
+    seq_lens: torch.Tensor | None = None
+    kv_indptr: torch.Tensor | None = None
 
 
 @triton.jit
@@ -88,6 +90,43 @@ class MSACutlassDecodePlanCache:
     """Reusable plans whose mutable tensors retain cudagraph-stable addresses."""
 
     plans: dict[tuple[int, ...], Any] = field(init=False, default_factory=dict)
+
+    def prepare_compound(
+        self,
+        block_table: torch.Tensor,
+        seq_lens: torch.Tensor,
+        decode_query_len: int,
+        *,
+        num_q_heads: int,
+        num_kv_heads: int,
+    ) -> MSACutlassDecodeMetadata:
+        from vllm.third_party.fmha_sm100.decode_q8kv4 import plan_decode
+
+        if not block_table.is_contiguous():
+            raise ValueError("Compound decode requires a contiguous block table")
+        batch, stride = block_table.shape
+        key = (-1, batch, decode_query_len, stride, num_q_heads, num_kv_heads)
+        entry = self.plans.get(key)
+        if entry is None:
+            plan = plan_decode(
+                batch_size=batch,
+                q_len_per_req=decode_query_len,
+                topk=16,
+                device=block_table.device,
+                num_q_heads=num_q_heads,
+                num_kv_heads=num_kv_heads,
+                num_kv_splits=1,
+                split_mode="streamk",
+                block_scale_shift=3,
+            )
+            indptr = (
+                torch.arange(batch + 1, dtype=torch.int32, device=block_table.device)
+                * stride
+            )
+            entry = (plan, indptr)
+            self.plans[key] = entry
+        plan, indptr = entry
+        return MSACutlassDecodeMetadata(plan, block_table.view(-1), seq_lens, indptr)
 
     def _build_plan(
         self,
@@ -354,6 +393,29 @@ def msa_cutlass_sparse_decode(
     NVFP4 caches are uint8 head-slot pages (see ``nvfp4_kv_cache_views``) and
     take the device global scales ``k_scale``/``v_scale``.
     """
+    if metadata.kv_indptr is not None:
+        from vllm.third_party.fmha_sm100.decode_q8kv4 import run_decode
+
+        assert k_scale is not None and v_scale is not None
+        assert metadata.seq_lens is not None
+        k_data, k_sf, v_data, v_sf = nvfp4_kv_cache_views(kv_cache)
+        run_decode(
+            metadata.plan,
+            query_fp8,
+            (k_data, v_data),
+            kv_cache_sf=(
+                k_sf.view(torch.float8_e4m3fn),
+                v_sf.view(torch.float8_e4m3fn),
+            ),
+            seq_lens=metadata.seq_lens,
+            kv_indices=metadata.page_table,
+            kv_indptr=metadata.kv_indptr,
+            topk_indices=topk,
+            sm_scale=scale * q_scale_float,
+            kv_global_scale=(k_scale, v_scale),
+            out=output,
+        )
+        return
     if kv_cache.dtype == torch.uint8:
         assert k_scale is not None and v_scale is not None
         key, value = nvfp4_kv_cache_slots(kv_cache)

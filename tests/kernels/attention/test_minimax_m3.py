@@ -103,8 +103,9 @@ TOPK = 16
 @pytest.mark.skipif(not current_platform.is_cuda(), reason="CUDA metadata kernel")
 @pytest.mark.parametrize("tp,rank", [(tp, rank) for tp in (2, 4) for rank in range(tp)])
 @pytest.mark.parametrize("width", [4, 128])
+@pytest.mark.parametrize("page_size", [128, 256])
 def test_icp_metadata_visible_fragments_and_work_coverage(
-    tp: int, rank: int, width: int
+    tp: int, rank: int, width: int, page_size: int
 ):
     """Independent index pages need causal metadata and complete split-window work."""
     from vllm.models.minimax_m3.nvidia.ops.icp_metadata import prepare_icp_metadata
@@ -145,19 +146,25 @@ def test_icp_metadata_visible_fragments_and_work_coverage(
     )
     args.update({f"icp_{name}": full((capacity,)) for name in names})
     step = SimpleNamespace(writer_args=args, token_capacity=capacity)
-    prepare_icp_metadata(step, rank, tp)
+    prepare_icp_metadata(step, rank, tp, page_size=page_size)
 
     expected: dict[str, list[int]] = {name: [] for name in ("positions", *names)}
     for query_len, seq_len in zip(query_lens, seq_lens):
         for position in range(seq_len - query_len, seq_len):
             visible_blocks = [
-                token // 128 for token in range(rank * (128 // tp), position + 1, 128)
+                token // page_size
+                for token in range(rank * (page_size // tp), position + 1, page_size)
             ]
             forced = position // 128
+            forced_column = position // page_size
+            forced_owned = (
+                forced % (page_size // 128) == rank * (page_size // tp) // 128
+                and forced_column in visible_blocks
+            )
             row_values = (
                 position,
                 len(visible_blocks),
-                forced if forced in visible_blocks else -1,
+                forced_column if forced_owned else -1,
                 forced + 1,
                 forced,
                 min(forced, 15),

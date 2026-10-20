@@ -114,6 +114,7 @@ class MiniMaxM3IndexerCache(nn.Module, AttentionLayerBase):
         indexer_kv_dtype: IndexerKVDType | str = "bf16",
         backend_cls: type[AttentionBackend] = MiniMaxM3IndexerBackend,
         tp_shard: int = 1,
+        register_cache: bool = True,
     ) -> None:
         super().__init__()
         if indexer_kv_dtype in ("fp8", "fp8_e4m3"):
@@ -135,10 +136,11 @@ class MiniMaxM3IndexerCache(nn.Module, AttentionLayerBase):
         self.tp_shard = tp_shard
         # Impl-chosen backend -> each impl gets its own builder (get_attn_backend).
         self.backend_cls = backend_cls
-        compilation_config = get_current_vllm_config().compilation_config
-        if prefix in compilation_config.static_forward_context:
-            raise ValueError(f"Duplicate layer name: {prefix}")
-        compilation_config.static_forward_context[prefix] = self
+        if register_cache:
+            compilation_config = get_current_vllm_config().compilation_config
+            if prefix in compilation_config.static_forward_context:
+                raise ValueError(f"Duplicate layer name: {prefix}")
+            compilation_config.static_forward_context[prefix] = self
 
     def bind_kv_cache(self, kv_cache: torch.Tensor) -> None:
         # [B, H=1, N, C] -> [B, N, C]
@@ -373,6 +375,7 @@ class MiniMaxM3IndexerImpl(nn.Module):
         indexer_kv_dtype: IndexerKVDType | str = "bf16",
         topk_indices_buffer: torch.Tensor | None = None,
         index_k_shard: int = 1,
+        cache_packing: bool = False,
     ) -> None:
         super().__init__()
         self.num_kv_heads = num_kv_heads
@@ -385,6 +388,8 @@ class MiniMaxM3IndexerImpl(nn.Module):
         self.num_index_heads = num_index_heads
         self.index_head_dim = index_head_dim
         self.indexer_kv_dtype = indexer_kv_dtype
+        self.cache_packing = cache_packing
+        self.metadata_prefix = prefix if cache_packing else f"{prefix}.index_cache"
         # Shared, stable-address top-k output buffer (set by the model for the
         # cudagraph-safe MSA impl); None -> impl allocates fresh (eager).
         self.topk_indices_buffer = topk_indices_buffer
@@ -408,6 +413,7 @@ class MiniMaxM3IndexerImpl(nn.Module):
             indexer_kv_dtype=indexer_kv_dtype,
             backend_cls=type(self).indexer_backend_cls,
             tp_shard=index_k_shard,
+            register_cache=not cache_packing,
         )
 
     def forward(
@@ -599,6 +605,7 @@ class MiniMaxM3Indexer(nn.Module):
         indexer_kv_dtype: IndexerKVDType | str = "bf16",
         topk_indices_buffer: torch.Tensor | None = None,
         index_k_shard: int = 1,
+        cache_packing: bool = False,
     ) -> None:
         super().__init__()
         impl_cls = select_indexer_impl_cls(
@@ -620,6 +627,7 @@ class MiniMaxM3Indexer(nn.Module):
             indexer_kv_dtype=indexer_kv_dtype,
             topk_indices_buffer=topk_indices_buffer,
             index_k_shard=index_k_shard,
+            cache_packing=cache_packing,
         )
 
     @property

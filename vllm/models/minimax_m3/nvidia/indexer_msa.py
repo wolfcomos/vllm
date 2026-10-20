@@ -147,6 +147,8 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
         device: torch.device,
     ) -> None:
         super().__init__(kv_cache_spec, layer_names, vllm_config, device)
+        self.page_size = kv_cache_spec.block_size
+        self.cache_packing = vllm_config.attention_config.indexer_cache_packing
         content = kv_cache_spec.state_content_bytes
         full = kv_cache_spec.head_size * kv_cache_spec.dtype.itemsize
         self.index_k_tp = 1 if content is None else full // content
@@ -229,7 +231,9 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
                 num_reqs=num_reqs,
                 num_tokens=num_tokens,
             )
-            prepare_icp_metadata(step, self.index_k_rank, self.index_k_tp)
+            prepare_icp_metadata(
+                step, self.index_k_rank, self.index_k_tp, page_size=self.page_size
+            )
             return MiniMaxM3IndexerMSAMetadata(
                 seq_lens=seq_lens,
                 max_seq_len=common_attn_metadata.max_seq_len,
@@ -240,11 +244,15 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
                 num_prefills=num_prefills,
                 num_prefill_tokens=num_prefill_tokens,
                 icp=step,
-                index_slot_mapping=shard_slot_mapping(
-                    common_attn_metadata.slot_mapping,
-                    self.index_k_rank,
-                    self.index_k_tp,
-                    self.index_k_slots,
+                index_slot_mapping=(
+                    None
+                    if self.cache_packing
+                    else shard_slot_mapping(
+                        common_attn_metadata.slot_mapping,
+                        self.index_k_rank,
+                        self.index_k_tp,
+                        self.index_k_slots,
+                    )
                 ),
             )
 
@@ -372,7 +380,15 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
         attn_metadata = get_forward_context().attn_metadata
         if not isinstance(attn_metadata, dict):
             return None, None  # profiling run; caches unbound
-        md = attn_metadata[self.index_cache.prefix]
+        md = attn_metadata[self.metadata_prefix]
+        if self.cache_packing:
+            from vllm.models.minimax_m3.nvidia.sparse_attention_msa import (
+                MiniMaxM3SparseMSAMetadata,
+            )
+
+            assert isinstance(md, MiniMaxM3SparseMSAMetadata)
+            assert md.indexer_metadata is not None
+            md = md.indexer_metadata
         assert isinstance(md, MiniMaxM3IndexerMSAMetadata)
 
         if self.index_cache.tp_shard > 1:
@@ -509,8 +525,10 @@ def _unsupported_reason(
         return "needs four index heads and topk_blocks=16"
     if indexer_kv_dtype not in ("fp8", "fp8_e4m3"):
         return "needs an FP8 E4M3 index cache"
-    if vllm_config.cache_config.block_size != PAGE_SIZE:
-        return "needs block_size=128"
+    page_size = vllm_config.cache_config.block_size
+    packing = vllm_config.attention_config.indexer_cache_packing
+    if page_size not in ((128, 256) if packing else (128,)):
+        return "needs P128 independent pages or P128/P256 compound pages"
     if sparse.get("sparse_index_dim") != 128:
         return "needs index head dimension 128"
     if (
@@ -634,7 +652,13 @@ class IndexKShardComm:
                     "ICP top-k output has an incompatible capacity or heads"
                 )
             self.topk_buffer = topk_indices_buffer
-            prewarm.warm(page_size=PAGE_SIZE, world_size=self.world)
+            packing = vllm_config.attention_config.indexer_cache_packing
+            page_size = vllm_config.cache_config.block_size if packing else PAGE_SIZE
+            prewarm.warm(
+                page_size=page_size,
+                world_size=self.world,
+                include_main_attention=packing,
+            )
             torch.accelerator.synchronize(device)
 
         with _local_init():
@@ -649,7 +673,7 @@ class IndexKShardComm:
                 max_num_batched_tokens=scheduler.max_num_batched_tokens,
                 max_num_seqs=scheduler.max_num_seqs,
                 cudagraph_capture_sizes=vllm_config.compilation_config.cudagraph_capture_sizes,
-                page_size=PAGE_SIZE,
+                page_size=page_size,
             )
         try:
             with _local_init():
@@ -671,7 +695,7 @@ class IndexKShardComm:
                     num_reqs=1,
                     num_tokens=1,
                 )
-                prepare_icp_metadata(step, self.rank, self.world)
+                prepare_icp_metadata(step, self.rank, self.world, page_size=page_size)
                 torch.accelerator.synchronize(device)
                 self.indexer.allocate(max_decode_query_len=max_query)
         except _IndexKInitError:

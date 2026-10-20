@@ -72,6 +72,12 @@ from vllm.model_executor.models.utils import (
     spec_decode_needs_target_embed,
 )
 from vllm.model_executor.models.vision import run_dp_sharded_mrope_vision_model
+from vllm.models.minimax_m3.common.compound_page import (
+    BoundCompoundCache,
+    CompoundPageLayout,
+    bind_compound_cache,
+)
+from vllm.models.minimax_m3.common.compound_spec import MiniMaxM3CompoundSpec
 from vllm.models.minimax_m3.common.encoder_cudagraph import (
     MiniMaxM3EncoderCudaGraphMixin,
 )
@@ -450,6 +456,42 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
         self.indexer_kv_dtype = vllm_config.attention_config.resolve_indexer_kv_dtype(
             "bf16"
         )
+        packing = vllm_config.attention_config.indexer_cache_packing
+        self.compound_layout = None
+        self._bound_compound: BoundCompoundCache | None = None
+        if packing:
+            if (
+                vllm_config.attention_config.indexer_cache_sharding != "on"
+                or vllm_config.cache_config.cache_dtype != "nvfp4"
+                or self.indexer_kv_dtype not in ("fp8", "fp8_e4m3")
+                or self.total_num_heads != 64
+                or vllm_config.model_config.dtype != torch.bfloat16
+            ):
+                raise ValueError(
+                    "MiniMax-M3 cache packing requires sharding='on', NVFP4 main "
+                    "KV, FP8 index keys, Q64 and BF16 activations"
+                )
+            transfer = vllm_config.kv_transfer_config
+            if transfer is not None and (
+                transfer.kv_connector != "SimpleCPUOffloadConnector"
+                or transfer.kv_connector_module_path is not None
+                or transfer.kv_role != "kv_both"
+                or transfer.kv_connector_extra_config.get("kv_offload_backend", "cpu")
+                != "cpu"
+                or not vllm_config.cache_config.enable_prefix_caching
+            ):
+                raise ValueError(
+                    "Compound pages support only built-in SimpleCPUOffloadConnector "
+                    "with kv_both, CPU storage and prefix caching"
+                )
+            self.compound_layout = CompoundPageLayout.build(
+                tp_size=tp_size,
+                physical_page_tokens=vllm_config.cache_config.block_size,
+                ranking_block_tokens=sparse_cfg["sparse_block_size"],
+                total_main_kv_heads=self.total_num_kv_heads,
+                main_head_dim=self.head_dim,
+                index_head_dim=self.idx_head_dim,
+            )
         index_k_shard = resolve_index_k_shard(
             vllm_config,
             self.total_idx_heads,
@@ -457,6 +499,10 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
             sparse_cfg["sparse_topk_blocks"],
             topk_indices_buffer=topk_indices_buffer,
         )
+        if packing and index_k_shard != tp_size:
+            raise ValueError(
+                "Compound pages require successful indexer CP initialization"
+            )
         self.index_q_size = self.num_idx_heads * index_k_shard * self.idx_head_dim
 
         # Single fused projection: q, k, v, index_q, index_k in one GEMM.
@@ -561,6 +607,7 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
             indexer_kv_dtype=self.indexer_kv_dtype,
             topk_indices_buffer=topk_indices_buffer,
             index_k_shard=index_k_shard,
+            cache_packing=packing,
         )
 
         # Register the main K/V cache so the KV-cache manager allocates it.
@@ -575,7 +622,7 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
 
     def get_kv_cache_spec(self, vllm_config: VllmConfig) -> KVCacheSpec | None:
         # Main GQA K/V cache. Block size may change after load, refresh it.
-        return FullAttentionSpec(
+        spec = FullAttentionSpec(
             block_size=vllm_config.cache_config.block_size,
             num_kv_heads=self.num_kv_heads,
             head_size=self.head_dim,
@@ -583,6 +630,30 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
             dtype=self.kv_cache_torch_dtype,
             kv_quant_mode=get_kv_quant_mode(self.kv_cache_dtype),
         )
+        if self.compound_layout is not None:
+            main_spec = cast(FullAttentionSpec, self.attn_backend.customize_spec(spec))
+            return MiniMaxM3CompoundSpec.from_main_spec(main_spec, self.compound_layout)
+        return spec
+
+    def bind_kv_cache(self, kv_cache: torch.Tensor) -> None:
+        if self.compound_layout is not None:
+            from vllm.distributed import get_tensor_model_parallel_rank
+
+            self._bound_compound = bind_compound_cache(
+                kv_cache, self.compound_layout, get_tensor_model_parallel_rank()
+            )
+            self.indexer.index_cache.kv_cache = self._bound_compound.index
+        self.kv_cache = kv_cache
+
+    def release_kv_cache(self) -> None:
+        self._bound_compound = None
+        self.indexer.index_cache.kv_cache = torch.tensor([])
+
+    def _main_kv_cache(self) -> torch.Tensor:
+        if self.compound_layout is None:
+            return self.kv_cache
+        assert self._bound_compound is not None
+        return self._bound_compound.main
 
     def _allocate_query_fp8(self, qkv: torch.Tensor) -> torch.Tensor | None:
         if not getattr(self.impl, "use_cutlass_decode", False):
@@ -625,12 +696,16 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
             return qkv.new_zeros((num_tokens, self.hidden_size))
 
         main_slot_mapping = fwd_slot_mapping[self.layer_name]
-        index_slot_mapping = fwd_slot_mapping[self.indexer.index_cache.prefix]
+        packing = self.compound_layout is not None
+        index_slot_mapping = (
+            None if packing else fwd_slot_mapping[self.indexer.index_cache.prefix]
+        )
+        main_kv_cache = self._main_kv_cache()
         q = qkv.new_empty((num_tokens, self.q_size))
         # With query_fp8, q is emitted only in fp8; the attend dequantizes it
         # into ``q`` for the tokens that run on Triton decode.
         query_fp8 = self._allocate_query_fp8(qkv)
-        if self.indexer.index_cache.tp_shard > 1:
+        if self.indexer.index_cache.tp_shard > 1 and not packing:
             attn_metadata = get_forward_context().attn_metadata
             assert isinstance(attn_metadata, dict)
             index_md = cast(
@@ -660,9 +735,9 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
             self.qkv_proj.num_index_heads,
             main_slot_mapping,
             index_slot_mapping,
-            self.kv_cache,
+            main_kv_cache,
             self.indexer.index_cache.kv_cache,
-            self.kv_cache.size(2),  # paged-cache block size
+            main_kv_cache.size(2),
             q if query_fp8 is None else None,
             index_q,
             self.kv_cache_dtype,
@@ -670,6 +745,10 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
             q_fp8_scale=self._q_scale_float,
             kv_k_scale=self._k_scale if self.use_nvfp4_kv else None,
             kv_v_scale=self._v_scale if self.use_nvfp4_kv else None,
+            index_k_tp_rank=(
+                self._bound_compound.tp_rank if self._bound_compound is not None else 0
+            ),
+            index_k_tp_size=self.indexer.index_cache.tp_shard if packing else 1,
         )
 
         output = torch.empty_like(q)
@@ -692,7 +771,7 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
         return self.impl.forward(
             self,
             query,
-            self.kv_cache,
+            self._main_kv_cache(),
             output,
             query_fp8=query_fp8,
         )

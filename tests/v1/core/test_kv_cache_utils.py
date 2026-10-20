@@ -91,6 +91,86 @@ from vllm.v1.request import Request
 pytestmark = pytest.mark.cpu_test
 
 
+@pytest.mark.parametrize("tp", [2, 4])
+@pytest.mark.parametrize("page_size", [128, 256])
+def test_minimax_compound_pages_share_prefix_lifetime(tp, page_size):
+    from vllm.models.minimax_m3.common.compound_page import (
+        CompoundPageLayout,
+        bind_compound_cache,
+    )
+    from vllm.models.minimax_m3.common.compound_spec import MiniMaxM3CompoundSpec
+    from vllm.v1.kv_cache_interface import compute_layer_kv_cache_shape_bytes
+
+    layout = CompoundPageLayout.build(tp_size=tp, physical_page_tokens=page_size)
+    main = FullAttentionSpec(
+        block_size=page_size,
+        num_kv_heads=4 // tp,
+        head_size=128,
+        head_size_v=128,
+        dtype=torch.uint8,
+        kv_quant_mode=KVQuantMode.NVFP4,
+        num_head_slots=8 // tp,
+        state_content_bytes=72,
+    )
+    spec = MiniMaxM3CompoundSpec.from_main_spec(main, layout)
+    page_bytes = page_size * (8 * 72 + 128) // tp
+    assert spec.page_size_bytes == page_bytes
+    assert compute_layer_kv_cache_shape_bytes(spec, 3) == (3, 1, 1, page_bytes)
+    assert (
+        spec.max_num_blocks_per_req(
+            SimpleNamespace(
+                parallel_config=SimpleNamespace(decode_context_parallel_size=1)
+            ),
+            page_size + 1,
+        )
+        == 2
+    )
+    assert not kv_cache_planning.is_kv_cache_spec_uniform(
+        {"main_only": main, "compound": spec}
+    )
+    assert not kv_cache_planning.is_kv_cache_spec_uniform(
+        {"compound": spec, "main_only": main}
+    )
+
+    backing = torch.zeros(16 + 3 * page_bytes + 16, dtype=torch.uint8)
+    raw = backing[16:-16].view(3, 1, 1, page_bytes)
+    bound = bind_compound_cache(raw, layout, tp_rank=tp - 1)
+    assert bound.main.untyped_storage().data_ptr() == backing.data_ptr()
+    assert bound.index.untyped_storage().data_ptr() == backing.data_ptr()
+    assert bound.index.data_ptr() == raw.data_ptr() + layout.main_span_bytes
+    assert bound.main.stride(0) == bound.index.stride(0) == page_bytes
+    bound.main.fill_(37)
+    bound.index.view(torch.uint8).fill_(91)
+    assert torch.all(raw[..., : layout.main_span_bytes] == 37)
+    assert torch.all(raw[..., layout.main_span_bytes :] == 91)
+    assert not backing[:16].any() and not backing[-16:].any()
+
+    config = KVCacheConfig(
+        num_blocks=16,
+        kv_cache_tensors=[],
+        kv_cache_groups=[KVCacheGroupSpec(["compound"], spec)],
+    )
+    manager = KVCacheManager(
+        generate_scheduler_kv_cache_config([config]),
+        max_model_len=4 * page_size,
+        scheduler_block_size=page_size,
+        hash_block_size=128,
+        enable_caching=True,
+    )
+    request = make_request(
+        "compound", [1] * (2 * page_size + 1), block_size=128, hash_fn=sha256
+    )
+    blocks = manager.allocate_slots(request, 2 * page_size + 1)
+    assert blocks is not None and len(blocks.blocks[0]) == 3
+    manager.cache_blocks(request, 2 * page_size)
+    cached_request = make_request(
+        "compound-hit", [1] * (2 * page_size + 1), block_size=128, hash_fn=sha256
+    )
+    cached, tokens, _ = manager.get_computed_blocks(cached_request)
+    assert tokens == 2 * page_size
+    assert cached.get_block_ids() == (blocks.get_block_ids()[0][:2],)
+
+
 def test_hisparse_steady_state_concurrency_excludes_spilled_resident_pages():
     """Running requests pin only their resident tail; the newest still needs its
     full in-flight window to be admitted."""

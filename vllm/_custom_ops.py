@@ -2734,6 +2734,9 @@ def fused_minimax_m3_qknorm_rope_kv_insert(
     q_fp8_scale: float = 1.0,
     kv_k_scale: torch.Tensor | None = None,
     kv_v_scale: torch.Tensor | None = None,
+    *,
+    index_k_tp_rank: int = 0,
+    index_k_tp_size: int = 1,
 ) -> None:
     """Fused MiniMax-M3 attention pre-processing (in-place).
 
@@ -2765,6 +2768,8 @@ def fused_minimax_m3_qknorm_rope_kv_insert(
     device dequantization scales ``kv_k_scale``/``kv_v_scale``. Slot
     ``2 * head + side`` (K = 0, V = 1) holds that head's E2M1 data followed by
     its E4M3 block scales, so every head is one contiguous run of the page.
+    With ``index_k_tp_size > 1``, main and index caches alias compound pages;
+    main slots select each rank's contiguous index-K fragment.
 
     When ``skip_index_branch`` is true, sparse rows still keep their packed
     ``[index_q | index_k]`` tail, but the kernel only processes the main q/k/v
@@ -2797,6 +2802,8 @@ def fused_minimax_m3_qknorm_rope_kv_insert(
         q_fp8_scale,
         kv_k_scale,
         kv_v_scale,
+        index_k_tp_rank,
+        index_k_tp_size,
     )
 
 

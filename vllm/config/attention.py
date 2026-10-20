@@ -102,6 +102,10 @@ class AttentionConfig:
     "auto" uses backend-specific selection criteria; "on" requests sharding
     wherever supported."""
 
+    indexer_cache_packing: bool = False
+    """Pack the indexer cache into main KV pages on supported backends.
+    Requires explicitly enabled indexer cache sharding."""
+
     indexer_sparse_logits: bool = False
     """DeepSeek V4.1 two-level indexer: score only the candidate blocks with
     DeepGEMM's sparse MQA-logits kernels instead of computing dense logits over

@@ -32,6 +32,7 @@ from vllm.v1.hisparse.types import SparseKVPageTransfer, SparseKVRowMirror
 from vllm.v1.worker.utils import (
     bind_kv_cache,
     bind_kv_cache_to_layers,
+    clear_layer_kv_caches,
     copy_kv_cache_blocks_inplace,
     request_memory,
 )
@@ -443,6 +444,34 @@ def test_copy_cpu_kv_cache_logical_blocks_ignores_storage_padding():
     torch.testing.assert_close(cache[4:6], torch.full_like(cache[4:6], 11))
     assert (backing[0] == -1).all()
     assert (backing[9] == -1).all()
+
+
+@pytest.mark.parametrize("page_size", [128, 256])
+def test_compound_page_copy_and_release_preserve_both_regions(page_size):
+    from vllm.models.minimax_m3.common.compound_page import (
+        CompoundPageLayout,
+        bind_compound_cache,
+    )
+    from vllm.models.minimax_m3.nvidia.model import MiniMaxM3SparseAttention
+
+    layout = CompoundPageLayout.build(tp_size=4, physical_page_tokens=page_size)
+    raw = torch.zeros((3, 1, 1, layout.compound_span_bytes), dtype=torch.uint8)
+    bound = bind_compound_cache(raw, layout, tp_rank=3)
+    bound.main[1].fill_(19)
+    bound.index[1].view(torch.uint8).fill_(53)
+    copy_kv_cache_blocks_inplace([raw], 3, [KVCacheBlockCopy(1, 2)])
+    torch.testing.assert_close(bound.main[2], bound.main[1])
+    torch.testing.assert_close(
+        bound.index[2].view(torch.uint8), bound.index[1].view(torch.uint8)
+    )
+    layer = MiniMaxM3SparseAttention.__new__(MiniMaxM3SparseAttention)
+    torch.nn.Module.__init__(layer)
+    layer.kv_cache = raw
+    layer._bound_compound = bound
+    layer.indexer = SimpleNamespace(index_cache=SimpleNamespace(kv_cache=bound.index))
+    clear_layer_kv_caches([layer])
+    assert layer._bound_compound is None
+    assert layer.kv_cache.numel() == layer.indexer.index_cache.kv_cache.numel() == 0
 
 
 def test_bind_kv_cache_keeps_scheduler_block_views_for_runner():

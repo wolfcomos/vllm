@@ -803,3 +803,134 @@ def test_sparse_full_nvfp4(num_tokens, num_kv_heads, block_size, kv_scales):
     torch.testing.assert_close(
         index_cache.view(-1, HEAD_DIM), expected_index_cache, rtol=0, atol=0
     )
+
+
+@pytest.mark.skipif(
+    not torch.cuda.is_available() or torch.cuda.get_device_capability()[0] != 10,
+    reason="NVFP4 KV caches need SM100",
+)
+@pytest.mark.parametrize("block_size", [128, 256])
+@pytest.mark.parametrize("tp_size", [2, 4])
+@pytest.mark.parametrize("dtype", [torch.bfloat16, torch.float16])
+def test_sparse_compound_nvfp4(block_size, tp_size, dtype):
+    """Packing preserves quantized bytes and writes only the rank's index rows."""
+    torch.manual_seed(17)
+    device = "cuda"
+    num_blocks, num_tokens = 3, 2 * block_size + 3
+    num_kv_heads, num_heads, num_index_heads = 4 // tp_size, 64 // tp_size, 4
+    qsz, kvsz, iqsz = (
+        num_heads * HEAD_DIM,
+        num_kv_heads * HEAD_DIM,
+        num_index_heads * HEAD_DIM,
+    )
+    original = torch.randn(
+        num_tokens, qsz + 2 * kvsz + iqsz + HEAD_DIM, dtype=dtype, device=device
+    )
+    weights = [
+        torch.randn(HEAD_DIM, dtype=dtype, device=device) * 0.1 for _ in range(4)
+    ]
+    positions = torch.arange(num_tokens, device=device)
+    cos_sin = make_cos_sin_cache(num_tokens, ROTARY_DIM, 5_000_000.0, dtype, device)
+    slots = torch.randperm(num_blocks * block_size, device=device)[:num_tokens]
+    slots[::7] = -1
+    k_scale, v_scale = (torch.tensor(value, device=device) for value in (0.5, 2.0))
+
+    def run(main, index, rank=0, world=1):
+        qkv = original.clone()
+        q = torch.empty((num_tokens, qsz), dtype=dtype, device=device)
+        q_fp8 = torch.empty_like(q, dtype=torch.float8_e4m3fn)
+        iq = torch.empty((num_tokens, iqsz), dtype=torch.float8_e4m3fn, device=device)
+
+        def insert():
+            ops.fused_minimax_m3_qknorm_rope_kv_insert(
+                qkv,
+                *weights[:2],
+                cos_sin,
+                positions,
+                num_heads,
+                num_kv_heads,
+                ROTARY_DIM,
+                1e-6,
+                *weights[2:],
+                num_index_heads,
+                slots,
+                None,
+                main,
+                index,
+                block_size,
+                q,
+                iq,
+                "nvfp4",
+                q_fp8_out=q_fp8,
+                q_fp8_scale=0.5,
+                kv_k_scale=k_scale,
+                kv_v_scale=v_scale,
+                index_k_tp_rank=rank,
+                index_k_tp_size=world,
+            )
+
+        insert()
+        if world > 1:
+            qkv.copy_(original)
+            graph = torch.cuda.CUDAGraph()
+            with torch.cuda.graph(graph):
+                insert()
+            for _ in range(2):
+                qkv.copy_(original)
+                graph.replay()
+        return qkv, q, q_fp8, iq
+
+    main_ref = torch.zeros(
+        num_blocks,
+        2 * num_kv_heads,
+        block_size,
+        72,
+        dtype=torch.uint8,
+        device=device,
+    )
+    index_ref = torch.zeros(
+        num_blocks, block_size, HEAD_DIM, dtype=torch.float8_e4m3fn, device=device
+    )
+    reference = run(main_ref, index_ref)
+    _, k, v, _, _ = reference[0].split([qsz, kvsz, kvsz, iqsz, HEAD_DIM], dim=-1)
+    expected_main = nvfp4_pages(
+        [
+            (k.view(num_tokens, num_kv_heads, HEAD_DIM), 1 / k_scale),
+            (v.view(num_tokens, num_kv_heads, HEAD_DIM), 1 / v_scale),
+        ],
+        slots,
+        num_blocks,
+        block_size,
+    )
+    assert torch.equal(main_ref, expected_main)
+
+    rows = block_size // tp_size
+    main_bytes = 2 * num_kv_heads * block_size * 72
+    page_bytes = main_bytes + rows * HEAD_DIM
+    for rank in range(tp_size):
+        raw = torch.full(
+            (256 + num_blocks * page_bytes + 256,),
+            0xA5,
+            dtype=torch.uint8,
+            device=device,
+        )
+        main = raw.as_strided(main_ref.shape, (page_bytes, block_size * 72, 72, 1), 256)
+        index = raw.view(torch.float8_e4m3fn).as_strided(
+            (num_blocks, rows, HEAD_DIM),
+            (page_bytes, HEAD_DIM, 1),
+            256 + main_bytes,
+        )
+        main.zero_()
+        index.zero_()
+        actual = run(main, index, rank, tp_size)
+        for result, expected in zip(actual, reference):
+            assert torch.equal(result.view(torch.uint8), expected.view(torch.uint8))
+        assert torch.equal(main, expected_main)
+        assert torch.equal(
+            index.view(torch.uint8),
+            index_ref[:, rank * rows : (rank + 1) * rows].view(torch.uint8),
+        )
+        assert torch.all(raw[:256] == 0xA5)
+        assert torch.all(raw[-256:] == 0xA5)
+        with pytest.raises(RuntimeError, match="compound main/index views"):
+            run(main, index.clone(), rank, tp_size)

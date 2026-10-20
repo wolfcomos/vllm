@@ -371,6 +371,76 @@ def test_register_shared_kv_cache_storage(monkeypatch, layout: KVCacheLayout):
     }
 
 
+@pytest.mark.parametrize("tp", [2, 4])
+@pytest.mark.parametrize("page_size", [128, 256])
+def test_compound_page_cpu_offload_round_trip(tp, page_size):
+    from vllm.models.minimax_m3.common.compound_page import (
+        CompoundPageLayout,
+        bind_compound_cache,
+    )
+    from vllm.models.minimax_m3.common.compound_spec import MiniMaxM3CompoundSpec
+    from vllm.v1.kv_cache_interface import KVQuantMode
+
+    layout = CompoundPageLayout.build(tp_size=tp, physical_page_tokens=page_size)
+    spec = MiniMaxM3CompoundSpec(
+        block_size=page_size,
+        num_kv_heads=4 // tp,
+        head_size=128,
+        head_size_v=128,
+        dtype=torch.uint8,
+        kv_quant_mode=KVQuantMode.NVFP4,
+        num_head_slots=8 // tp,
+        state_content_bytes=72,
+        index_rows_per_rank=page_size // tp,
+        index_head_dim=128,
+    )
+    size = 4 * spec.page_size_bytes
+    config = KVCacheConfig(
+        num_blocks=4,
+        kv_cache_tensors=[
+            KVCacheTensor(
+                size=size,
+                layers=["compound"],
+                layer_stride=size,
+                block_stride=spec.page_size_bytes,
+            )
+        ],
+        kv_cache_groups=[KVCacheGroupSpec(["compound"], spec)],
+    )
+    caches = allocate_kv_cache(config, torch.device("cuda"), KVCacheLayout.LBHNC)
+    raw = caches["compound"]
+    bound = bind_compound_cache(raw, layout, tp_rank=0)
+    bound.main.fill_(29)
+    bound.index.view(torch.uint8).fill_(71)
+    expected = raw[1].clone()
+    worker = _make_worker(config, cpu_capacity_bytes=size)
+    worker.register_kv_caches(caches)
+    assert worker.gpu_kv_caches is not None and worker.cpu_kv_caches is not None
+    assert len(worker.gpu_kv_caches) == 1
+    assert next(iter(worker.gpu_kv_caches.values())).shape == (4, spec.page_size_bytes)
+    assert worker._backend is not None
+    try:
+        for is_store, src, dst in ((True, 1, 0), (False, 0, 1)):
+            if not is_store:
+                raw[1].zero_()
+            ready = torch.Event()
+            ready.record()
+            events: list[tuple[int, torch.Event]] = []
+            worker._backend.launch_copy(
+                [src], [dst], is_store, 0, events, wait_event=ready
+            )
+            deadline = time.monotonic() + 10
+            while not events and time.monotonic() < deadline:
+                time.sleep(0.001)
+            assert events, "compound page transfer was not enqueued"
+            events[0][1].synchronize()
+        torch.testing.assert_close(raw[1], expected)
+        assert torch.all(bound.main[1] == 29)
+        assert torch.all(bound.index[1].view(torch.uint8) == 71)
+    finally:
+        worker._backend.shutdown()
+
+
 @pytest.mark.parametrize("num_layers", [1, 2])
 def test_explicit_cpu_blocks_bound_live_worker_allocation(monkeypatch, num_layers):
     """Different live KV strides must honor the same explicit CPU pool size."""

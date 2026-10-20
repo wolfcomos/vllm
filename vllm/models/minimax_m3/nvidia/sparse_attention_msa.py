@@ -10,7 +10,7 @@ vLLM packed pages directly in both prefill and CUTLASS decode.
 
 import os
 from dataclasses import dataclass, replace
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 import torch
 
@@ -19,6 +19,7 @@ from vllm.config.attention import MiniMaxM3MSADecodeBackend
 from vllm.config.cache import CacheDType
 from vllm.forward_context import get_forward_context
 from vllm.logger import init_logger
+from vllm.models.minimax_m3.common.compound_spec import MiniMaxM3CompoundSpec
 from vllm.models.minimax_m3.common.ops.sparse_attn import (
     SPARSE_BLOCK_SIZE,
     minimax_m3_sparse_attn_decode,
@@ -44,8 +45,12 @@ from vllm.utils.torch_utils import get_dtype_size, nvfp4_kv_cache_full_dim
 from vllm.v1.attention.backend import (
     AttentionLayer,
     CommonAttentionMetadata,
+    MultipleOf,
 )
-from vllm.v1.kv_cache_interface import AttentionSpec, KVCacheLayout
+from vllm.v1.kv_cache_interface import AttentionSpec, KVCacheLayout, MLAAttentionSpec
+
+if TYPE_CHECKING:
+    from vllm.models.minimax_m3.nvidia.indexer_msa import MiniMaxM3IndexerMSAMetadata
 
 logger = init_logger(__name__)
 
@@ -77,6 +82,14 @@ class MiniMaxM3SparseMSANvfp4Backend(MiniMaxM3SparseMSABackend):
     """MSA backend over HND NVFP4 KV cache pages in per-head K/V slots."""
 
     supported_kv_cache_dtypes: ClassVar[list[CacheDType]] = ["nvfp4"]
+
+    @staticmethod
+    def get_supported_kernel_block_sizes(
+        kv_cache_spec=None,
+    ) -> list[int | MultipleOf]:
+        if isinstance(kv_cache_spec, MiniMaxM3CompoundSpec):
+            return [kv_cache_spec.block_size]
+        return [128]
 
     @classmethod
     def customize_spec(cls, spec: AttentionSpec) -> AttentionSpec:
@@ -118,6 +131,11 @@ class MiniMaxM3SparseMSADecodeMetadata(MiniMaxM3SparseDecodeMetadata):
     msa_cutlass: MSACutlassDecodeMetadata | None = None
 
 
+@dataclass
+class MiniMaxM3SparseMSAMetadata(MiniMaxM3SparseMetadata):
+    indexer_metadata: "MiniMaxM3IndexerMSAMetadata | None" = None
+
+
 class MiniMaxM3SparseMSAMetadataBuilder(MiniMaxM3SparseMetadataBuilder):
     """Prepare MSA plans only for decode shapes supported by ``fmha_sm100``."""
 
@@ -140,6 +158,22 @@ class MiniMaxM3SparseMSAMetadataBuilder(MiniMaxM3SparseMetadataBuilder):
         self.decode_backend = vllm_config.attention_config.minimax_m3_msa_decode_backend
         self.msa_cutlass_plan_cache = MSACutlassDecodePlanCache()
         self.msa_cutlass_min_batch_size = _get_msa_cutlass_min_batch_size()
+        self.indexer_builder = None
+        if isinstance(kv_cache_spec, MiniMaxM3CompoundSpec):
+            from vllm.models.minimax_m3.nvidia.indexer_msa import (
+                MiniMaxM3IndexerMSAMetadataBuilder,
+            )
+
+            index_spec = MLAAttentionSpec(
+                block_size=kv_cache_spec.block_size,
+                num_kv_heads=1,
+                head_size=128,
+                dtype=torch.float8_e4m3fn,
+                state_content_bytes=128 // tp_size,
+            )
+            self.indexer_builder = MiniMaxM3IndexerMSAMetadataBuilder(
+                index_spec, layer_names, vllm_config, device
+            )
 
     def build(
         self,
@@ -152,12 +186,27 @@ class MiniMaxM3SparseMSAMetadataBuilder(MiniMaxM3SparseMetadataBuilder):
             common_attn_metadata,
             fast_build,
         )
+        if self.indexer_builder is not None:
+            metadata = MiniMaxM3SparseMSAMetadata(
+                **vars(metadata),
+                indexer_metadata=self.indexer_builder.build(
+                    common_prefix_len, common_attn_metadata, fast_build
+                ),
+            )
         decode = metadata.decode
         if decode is None:
             return metadata
 
         msa_cutlass = None
-        if should_prepare_decode_metadata(
+        if self.indexer_builder is not None:
+            msa_cutlass = self.msa_cutlass_plan_cache.prepare_compound(
+                decode.block_table,
+                decode.seq_lens,
+                decode.decode_query_len,
+                num_q_heads=self.num_q_heads,
+                num_kv_heads=self.num_kv_heads,
+            )
+        elif should_prepare_decode_metadata(
             metadata.num_decodes,
             decode.decode_query_len,
             decode_backend=self.decode_backend,
