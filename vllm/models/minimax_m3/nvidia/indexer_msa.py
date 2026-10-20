@@ -54,7 +54,7 @@ from vllm.v1.attention.backend import (
     CommonAttentionMetadata,
 )
 from vllm.v1.attention.backends.utils import split_decodes_and_prefills
-from vllm.v1.kv_cache_interface import AttentionSpec
+from vllm.v1.kv_cache_interface import AttentionSpec, KVCacheLayout
 
 if TYPE_CHECKING:
     from vllm.config import CompilationConfig
@@ -86,6 +86,11 @@ MAX_K_TILES = 8192
 
 class MiniMaxM3IndexerMSABackend(MiniMaxM3IndexerBackend):
     """Indexer side-cache backend selecting the MSA builder."""
+
+    @classmethod
+    def supported_kv_cache_layouts(cls) -> tuple[KVCacheLayout, ...]:
+        # The flat insert kernel requires contiguous rows in the H=1 cache.
+        return (KVCacheLayout.LBNHC, KVCacheLayout.LBHNC, KVCacheLayout.LHBNC)
 
     @staticmethod
     def get_builder_cls() -> type["MiniMaxM3IndexerMSAMetadataBuilder"]:
