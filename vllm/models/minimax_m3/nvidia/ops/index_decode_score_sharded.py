@@ -447,7 +447,7 @@ def minimax_m3_index_decode_score_sharded_cutedsl(
     kernel(idx_q, index_kv_shard, block_table, score_out, seq_lens, rank)
 
 
-@triton.jit
+@triton.jit(do_not_specialize=["slot", "rank"])
 def _index_k_publish_candidates_kernel(
     scores_ptr,
     indices_ptr,
@@ -548,10 +548,11 @@ def _index_k_merge_candidates_kernel(
         tl.uint64
     )
     keys = tl.where(unique, keys, 0)
-    keys, ids = tl.sort_key_value(keys, ids, descending=True)
+    keys = tl.sort(keys, descending=True)
     positions = tl.arange(0, 16)
-    selected = tl.gather(ids, positions, 0)
-    selected = tl.where(tl.gather(keys, positions, 0) != 0, selected, 0x7FFFFFFF)
+    selected_keys = tl.gather(keys, positions, 0)
+    selected = (0xFFFFFFFF - selected_keys.to(tl.uint32)).to(tl.int32)
+    selected = tl.where(selected_keys != 0, selected, 0x7FFFFFFF)
     selected = tl.sort(selected, descending=False)
     tl.store(
         out_ptr + t * out_stride_t + h * out_stride_h + positions,
