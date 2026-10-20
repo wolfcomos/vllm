@@ -2335,13 +2335,37 @@ def test_indexer_cache_squeezes_to_contiguous_3d(tp_shard, index_dtype):
     assert ispec.page_size_bytes == BLOCK_SIZE * content
     assert _layer_stride_order(KVCacheLayout.LBNHC, 3) == (0, 1, 2)
 
-    for layout in (KVCacheLayout.LBNHC, KVCacheLayout.LBHNC):
+    for layout in (
+        KVCacheLayout.LBNHC,
+        KVCacheLayout.LBHNC,
+        KVCacheLayout.LHBNC,
+    ):
         iraw = torch.zeros(nb * ispec.page_size_bytes, dtype=torch.int8)
         view = dense_kv_cache_views(iraw, ispec, nb, 1, layout, BLOCK_SIZE)[0]
         cache.bind_kv_cache(view)
         assert tuple(cache.kv_cache.shape) == (nb, BLOCK_SIZE // tp_shard, HEAD_DIM)
         assert cache.kv_cache.is_contiguous()
         assert cache.kv_cache.data_ptr() == iraw.data_ptr()
+
+
+@pytest.mark.parametrize("layout", list(KVCacheLayout))
+def test_indexer_rejects_block_outer_cache_layout(monkeypatch, layout):
+    from vllm.config import VllmConfig
+    from vllm.models.minimax_m3.nvidia.indexer_msa import MiniMaxM3IndexerMSABackend
+    from vllm.v1.attention.backends.utils import (
+        get_supported_kv_cache_layouts,
+        resolve_kv_cache_layout,
+    )
+
+    monkeypatch.setenv("VLLM_KV_CACHE_LAYOUT", layout.name)
+    config = VllmConfig()
+    supported = get_supported_kv_cache_layouts([MiniMaxM3IndexerMSABackend])
+    names = [[candidate.name for candidate in supported]]
+    if layout.is_block_outermost:
+        with pytest.raises(ValueError, match="does not satisfy"):
+            resolve_kv_cache_layout(config, names)
+    else:
+        assert resolve_kv_cache_layout(config, names) == layout
 
 
 def test_hnd_allocation_is_packed_head_major():
