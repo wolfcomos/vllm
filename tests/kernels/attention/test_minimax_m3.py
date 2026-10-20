@@ -3,6 +3,7 @@
 """Correctness tests for MiniMax M3 sparse prefill attention kernels."""
 
 from functools import partial
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -97,6 +98,135 @@ BLOCK_SIZE = 128
 DTYPE = torch.bfloat16
 SM_SCALE = HEAD_DIM**-0.5
 TOPK = 16
+
+
+@pytest.mark.skipif(not current_platform.is_cuda(), reason="CUDA metadata kernel")
+@pytest.mark.parametrize("tp,rank", [(tp, rank) for tp in (2, 4) for rank in range(tp)])
+@pytest.mark.parametrize("width", [4, 128])
+def test_icp_metadata_visible_fragments_and_work_coverage(
+    tp: int, rank: int, width: int
+):
+    """Independent index pages need causal metadata and complete split-window work."""
+    from vllm.models.minimax_m3.nvidia.ops.icp_metadata import prepare_icp_metadata
+
+    query_lens = [1, 4, 129, 3, 0]
+    seq_lens = [32, 128, 385, 2050, 0]
+    qsl = [0]
+    for length in query_lens:
+        qsl.append(qsl[-1] + length)
+    capacity = (qsl[-1] + 3) // 4 * 4 + width
+    slots = (capacity + width - 1) // width
+    num_reqs, num_ctas = len(query_lens), 8
+    max_work = 4 * ((width + 127) // 128 + num_reqs)
+
+    def full(shape, dtype=torch.int32, value=-99):
+        return torch.full(shape, value, dtype=dtype, device="cuda")
+
+    args = {
+        "icp_query_start_loc": torch.tensor(qsl, dtype=torch.int32, device="cuda"),
+        "icp_seq_lens": torch.tensor(seq_lens, dtype=torch.int32, device="cuda"),
+        "icp_num_reqs": num_reqs,
+        "icp_positions": full((capacity,), torch.int64),
+        "icp_active": full((capacity,), torch.bool, True),
+        "icp_candidates": full((capacity, 4, 16, 2), torch.float32, 7),
+        "icp_plan_segments": full((slots, 5, num_reqs + 1)),
+        "icp_plan_work": full((slots, num_ctas + 3 * max_work), torch.int64),
+        "icp_plan_header": full((slots, 4)),
+        "icp_qo_offsets": full((slots, num_reqs)),
+        "icp_plan_num_ctas": num_ctas,
+        "icp_chunk_width": width,
+    }
+    names = (
+        "local_nvalid",
+        "local_forced",
+        "global_nvalid",
+        "forced",
+        "n_ordinary",
+    )
+    args.update({f"icp_{name}": full((capacity,)) for name in names})
+    step = SimpleNamespace(writer_args=args, token_capacity=capacity)
+    prepare_icp_metadata(step, rank, tp)
+
+    expected: dict[str, list[int]] = {name: [] for name in ("positions", *names)}
+    for query_len, seq_len in zip(query_lens, seq_lens):
+        for position in range(seq_len - query_len, seq_len):
+            visible_blocks = [
+                token // 128 for token in range(rank * (128 // tp), position + 1, 128)
+            ]
+            forced = position // 128
+            row_values = (
+                position,
+                len(visible_blocks),
+                forced if forced in visible_blocks else -1,
+                forced + 1,
+                forced,
+                min(forced, 15),
+            )
+            for name, value in zip(expected, row_values):
+                expected[name].append(value)
+    for name, values in expected.items():
+        pad = -1 if name in ("forced", "local_forced") else 0
+        assert args[f"icp_{name}"].cpu().tolist() == (
+            values + [pad] * (capacity - qsl[-1])
+        )
+    assert args["icp_active"].cpu().tolist() == (
+        [True] * qsl[-1] + [False] * (capacity - qsl[-1])
+    )
+    candidates = args["icp_candidates"].cpu()
+    assert torch.all(candidates[..., 0] == 7)
+    assert torch.all(candidates[: qsl[-1], ..., 1] == 7)
+    assert torch.all(candidates[qsl[-1] :].view(torch.int32)[..., 1] == -1)
+
+    segments = args["icp_plan_segments"].cpu().tolist()
+    headers = args["icp_plan_header"].cpu().tolist()
+    work = args["icp_plan_work"].cpu().tolist()
+    offsets = args["icp_qo_offsets"].cpu().tolist()
+    for slot in range(slots):
+        begin, end = slot * width, min((slot + 1) * width, qsl[-1])
+        requests = [
+            req
+            for req in range(num_reqs)
+            if max(begin, qsl[req]) < min(end, qsl[req + 1])
+        ]
+        n, first, item_count, token_begin = headers[slot]
+        assert (n, first, token_begin) == (
+            len(requests),
+            requests[0] if requests else 0,
+            begin,
+        )
+        qo, kv, qlens, klens, causal = segments[slot]
+        assert qo[0] == kv[0] == 0
+        kv_total = 0
+        expected_work: set[tuple[int, int, int]] = set()
+        for local, req in enumerate(requests):
+            lo, hi = max(begin, qsl[req]), min(end, qsl[req + 1])
+            kv_total += seq_lens[req]
+            assert qo[local + 1] == hi - begin
+            assert kv[local + 1] == kv_total
+            assert (qlens[local], klens[local]) == (hi - lo, seq_lens[req])
+            assert (
+                causal[local]
+                == offsets[slot][local]
+                == (seq_lens[req] - query_lens[req] + lo - qsl[req])
+            )
+            expected_work.update(
+                (tile, head, req)
+                for tile in range((hi - lo + 127) // 128)
+                for head in range(4)
+            )
+        actual_work = []
+        previous_end = 0
+        for packed_range in work[slot][:num_ctas]:
+            start, stop = packed_range & 0xFFFFFFFF, packed_range >> 32
+            assert start == previous_end and start <= stop <= item_count
+            previous_end = stop
+            for packed in work[slot][num_ctas + start : num_ctas + stop]:
+                actual_work.append(
+                    (packed >> 32, (packed >> 16) & 0xFFFF, first + (packed & 0xFFFF))
+                )
+        assert previous_end == item_count == len(expected_work)
+        assert len(actual_work) == len(set(actual_work))
+        assert set(actual_work) == expected_work
 
 
 @pytest.mark.parametrize(
@@ -1536,91 +1666,6 @@ def test_decode_index_score_cutedsl_correctness(
             side.synchronize()
 
 
-@pytest.mark.skipif(
-    not current_platform.is_device_capability_family(100),
-    reason="Sharded index decode score requires Blackwell.",
-)
-@pytest.mark.parametrize(
-    "decode_query_len,max_decode_query_len", [(1, 1), (1, 8), (3, 8), (8, 8)]
-)
-def test_sharded_decode_index_score_matches_reference(
-    decode_query_len, max_decode_query_len
-):
-    pytest.importorskip("cutlass")
-    from vllm.models.minimax_m3.nvidia.ops.index_decode_score_sharded import (
-        MAX_K_TILES,
-        _index_k_max_reduce_kernel,
-        minimax_m3_index_decode_score_sharded_cutedsl,
-    )
-
-    torch.manual_seed(0)
-    world, head_dim = 4, HEAD_DIM
-    seq_lens = torch.tensor([129, 4097, 0], device="cuda", dtype=torch.int32)
-    num_pages = 3 * 33
-    block_table = torch.randperm(num_pages, device="cuda", dtype=torch.int32).view(
-        3, 33
-    )
-    total_q = seq_lens.numel() * decode_query_len
-    q = torch.randn(total_q, world, head_dim, device="cuda").to(torch.float8_e4m3fn)
-    kv = torch.randn(num_pages, BLOCK_SIZE, head_dim, device="cuda").to(q.dtype)
-    # Local destinations isolate score/head routing from the real TP4 transport test.
-    recv = [
-        torch.full(
-            (3, world, 1, total_q, MAX_K_TILES), -1, device="cuda", dtype=torch.int32
-        )
-        for _ in range(world)
-    ]
-    bases = torch.tensor([r.data_ptr() for r in recv], device="cuda", dtype=torch.int64)
-    errors = torch.zeros(1, device="cuda", dtype=torch.int32)
-    actual = torch.full((total_q, world, MAX_K_TILES), -float("inf"), device="cuda")
-    for rank in range(world):
-        minimax_m3_index_decode_score_sharded_cutedsl(
-            q,
-            kv[:, rank::world].contiguous(),
-            block_table,
-            seq_lens,
-            rank,
-            decode_query_len,
-            max_decode_query_len,
-            bases,
-            1,
-            total_q,
-        )
-    for head, r in enumerate(recv):
-        out = actual[:, head : head + 1]
-        _index_k_max_reduce_kernel[(total_q, MAX_K_TILES // 512)](
-            r[1],
-            out,
-            out.stride(0),
-            out.stride(1),
-            seq_lens,
-            decode_query_len,
-            errors,
-            r.stride(1),
-            r.stride(2),
-            r.stride(3),
-            W=world,
-            HPR=1,
-            CHUNK=512,
-            SPIN=1 << 26,
-            num_warps=4,
-        )
-    expected = torch.full_like(actual.transpose(0, 1), -float("inf"))
-    active_q = 2 * decode_query_len
-    expected[:, :active_q] = _reference_decode_index_score(
-        q[:active_q],
-        kv,
-        block_table[:2],
-        seq_lens[:2],
-        decode_query_len,
-        MAX_K_TILES,
-    )
-    torch.testing.assert_close(actual.transpose(0, 1), expected)
-    assert errors.item() == 0
-    for r in recv:
-        assert torch.all(r == -1), "Consumed slots must be reset, other slots untouched"
-
-
 # Sparse attention kernels.
 def _reference_sparse_attn(
     q: torch.Tensor,
@@ -2271,7 +2316,7 @@ def test_aiter_consolidated_qknorm_real_packed_shuffle(skip_index_branch, fp8_in
         assert not index_cache_t128
 
 
-@pytest.mark.parametrize("tp_shard", [1, 4])
+@pytest.mark.parametrize("tp_shard", [1, 2, 4])
 @pytest.mark.parametrize("index_dtype", ["bf16", "fp8"])
 def test_indexer_cache_squeezes_to_contiguous_3d(tp_shard, index_dtype):
     from vllm.config import VllmConfig, set_current_vllm_config

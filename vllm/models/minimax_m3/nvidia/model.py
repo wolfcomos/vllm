@@ -450,16 +450,14 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
         self.indexer_kv_dtype = vllm_config.attention_config.resolve_indexer_kv_dtype(
             "bf16"
         )
-        self.index_k_shard = resolve_index_k_shard(
+        index_k_shard = resolve_index_k_shard(
             vllm_config,
             self.total_idx_heads,
             self.indexer_kv_dtype,
             sparse_cfg["sparse_topk_blocks"],
+            topk_indices_buffer=topk_indices_buffer,
         )
-        self.num_qkv_idx_heads = (
-            self.total_idx_heads if self.index_k_shard > 1 else self.num_idx_heads
-        )
-        self.index_q_size = self.num_qkv_idx_heads * self.idx_head_dim
+        self.index_q_size = self.num_idx_heads * index_k_shard * self.idx_head_dim
 
         # Single fused projection: q, k, v, index_q, index_k in one GEMM.
         self.qkv_proj = MinimaxM3QKVParallelLinearWithIndexer(
@@ -472,7 +470,7 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
             bias=False,
             quant_config=quant_config,
             prefix=f"{prefix}.qkv_proj",
-            replicate_index_q=self.index_k_shard > 1,
+            replicate_index_q=index_k_shard > 1,
         )
         # reduce_results=False: the attention all-reduce is fused with the
         # following post_attention_layernorm (GemmaRMSNorm) in the decoder layer
@@ -562,7 +560,7 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
             cache_config=cache_config,
             indexer_kv_dtype=self.indexer_kv_dtype,
             topk_indices_buffer=topk_indices_buffer,
-            index_k_shard=self.index_k_shard,
+            index_k_shard=index_k_shard,
         )
 
         # Register the main K/V cache so the KV-cache manager allocates it.
@@ -659,7 +657,7 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
             eps,
             self.index_q_norm.weight,
             self.index_k_norm.weight,
-            self.num_qkv_idx_heads,
+            self.qkv_proj.num_index_heads,
             main_slot_mapping,
             index_slot_mapping,
             self.kv_cache,

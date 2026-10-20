@@ -21,14 +21,15 @@ shared with prefill.
 AMD / non-SM100.
 """
 
+import weakref
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 import torch
 
-from vllm.config import VllmConfig
+from vllm.config import VllmConfig, get_current_vllm_config_or_none
 from vllm.distributed import (
     get_tensor_model_parallel_rank,
     get_tensor_model_parallel_world_size,
@@ -45,8 +46,8 @@ from vllm.models.minimax_m3.common.indexer import (
 from vllm.models.minimax_m3.common.ops.index_topk import (
     minimax_m3_index_decode_score,
 )
+from vllm.models.minimax_m3.nvidia.ops import minimax_m3_index_decode_score_cutedsl
 from vllm.platforms import current_platform
-from vllm.triton_utils import triton
 from vllm.v1.attention.backend import (
     AttentionBackend,
     AttentionCGSupport,
@@ -55,7 +56,17 @@ from vllm.v1.attention.backend import (
 from vllm.v1.attention.backends.utils import split_decodes_and_prefills
 from vllm.v1.kv_cache_interface import AttentionSpec
 
+if TYPE_CHECKING:
+    from vllm.third_party.fmha_sm100.icp.indexer import IcpStep
+
 logger = init_logger(__name__)
+_ICP_STATES: dict[
+    int,
+    tuple[
+        weakref.ReferenceType[VllmConfig],
+        "IndexKShardComm | None",
+    ],
+] = {}
 
 # Page size == sparse block size == index-K block; fmha tile id == M3 block id.
 PAGE_SIZE = 128
@@ -70,31 +81,6 @@ _SCORE_SENTINEL = float("-inf")
 # num_valid_pages bound each row to its causal range, so shorter replays reuse
 # the same buffer safely.
 MAX_K_TILES = 8192
-
-# Auto-mode thresholds; small decode batches need longer contexts to amortize
-# the exchange. Small-batch overrides increase CTAs per request.
-MIN_ACTIVE_SEQS = 6
-LONG_CONTEXT_MIN_LEN = 256 * 1024
-SMALL_BATCH_SPLITS = {1: 512, 2: 256}
-SUPPORTED_TP = 4
-ROWS = PAGE_SIZE // SUPPORTED_TP
-# Receive slot sets the layers rotate over.
-NUM_SLOT_SETS = 3
-SENTINEL = -1  # 0xFFFFFFFF: a NaN, which no score is
-REDUCE_CHUNK = 512
-SPIN_LIMIT = 1 << 26
-# Speculative methods whose drafter does not reuse the target's sparse layers.
-_SPEC_METHODS = (None, "eagle", "eagle3", "ngram", "suffix", "draft_model")
-# Prefill pages one staging buffer holds (2M tokens of prefill context).
-GATHER_MAX_PAGES = 16384
-# Staging buffers the layers alternate over (see PageGather).
-GATHER_STAGES = 2
-# Epochs start above int32 so the kernels' epoch argument never changes type.
-GATHER_EPOCH0 = 1 << 32
-
-_COMM: "IndexKShardComm | None" = None
-_COMM_FAILED = False
-_GATHER: "PageGather | None" = None
 
 
 class MiniMaxM3IndexerMSABackend(MiniMaxM3IndexerBackend):
@@ -114,8 +100,6 @@ class MiniMaxM3IndexerMSAPrefillMetadata:
     prefix_lens: torch.Tensor  # [num_prefills] int32, context tokens
     max_query_len: int
     page_table: torch.Tensor  # flat physical page indices for the prefill side
-    # Physical pages to gather; page_table indexes the gathered result.
-    gather_pages: torch.Tensor | None = None
 
 
 @dataclass
@@ -144,8 +128,8 @@ class MiniMaxM3IndexerMSAMetadata(MiniMaxM3IndexerMetadata):
     # Per-token causal page count cdiv(seq_pos+1, PAGE_SIZE), [total_q] int32:
     # drives sparse_topk_select force_end_blocks + -1 out-of-range clamp.
     topk_num_valid_pages: torch.Tensor | None = None
-    # Stable insert slots for this rank's index-K rows; -1 skips other ranks.
     index_slot_mapping: torch.Tensor | None = None
+    icp: "IcpStep | None" = None
 
 
 class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
@@ -165,21 +149,24 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
         content = kv_cache_spec.state_content_bytes
         full = kv_cache_spec.head_size * kv_cache_spec.dtype.itemsize
         self.index_k_tp = 1 if content is None else full // content
-        self.index_k_rank = 0
-        self.index_k_slots: torch.Tensor | None = None
+        self.index_k_rank = (
+            get_tensor_model_parallel_rank() if self.index_k_tp > 1 else 0
+        )
         if self.index_k_tp > 1:
-            self.index_k_rank = get_tensor_model_parallel_rank()
-            max_capture = vllm_config.compilation_config.max_cudagraph_capture_size or 0
-            self.index_k_slots = torch.full(
-                (
-                    max(
-                        vllm_config.scheduler_config.max_num_batched_tokens, max_capture
-                    ),
-                ),
-                -1,
-                dtype=torch.int64,
-                device=device,
-            )
+            with _local_init():
+                comm = get_comm(vllm_config)
+                assert comm is not None
+                self.icp_indexer = comm.indexer
+                self.icp_indexer.allocate(
+                    max_decode_query_len=self.max_decode_query_len
+                )
+                capacity = (
+                    (vllm_config.scheduler_config.max_num_batched_tokens + 3) // 4 * 4
+                )
+                self.index_k_slots = torch.full(
+                    (capacity,), -1, dtype=torch.int64, device=device
+                )
+            return
         # Persistent unified score buffer [T, H, MAX_K_TILES] shared by all
         # indexer layers and reused across forwards. Stable address (required
         # for the captured decode path) + fixed tile dim so the decode score
@@ -216,13 +203,48 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
         assert num_decodes + num_prefills == num_reqs
         assert num_decode_tokens + num_prefill_tokens == num_tokens
 
-        index_slot_mapping = None
-        if self.index_k_slots is not None:
-            index_slot_mapping = shard_slot_mapping(
-                common_attn_metadata.slot_mapping,
-                self.index_k_rank,
-                self.index_k_tp,
-                self.index_k_slots,
+        if self.index_k_tp > 1:
+            from vllm.models.minimax_m3.nvidia.ops.icp_metadata import (
+                prepare_icp_metadata,
+            )
+
+            # Match graph dispatch, including short prefill extensions.
+            is_prefilling = torch.arange(num_reqs, device="cpu") >= num_decodes
+            upper_bound = common_attn_metadata.seq_lens_cpu_upper_bound
+            if upper_bound is None:
+                upper_bound = torch.full(
+                    (num_reqs,),
+                    common_attn_metadata.max_seq_len,
+                    dtype=torch.int32,
+                    device="cpu",
+                )
+            step = self.icp_indexer.plan(
+                block_table=block_table,
+                query_start_loc=query_start_loc,
+                query_start_loc_cpu=common_attn_metadata.query_start_loc_cpu,
+                seq_lens=seq_lens,
+                seq_lens_cpu_upper_bound=upper_bound,
+                is_prefilling=is_prefilling,
+                num_reqs=num_reqs,
+                num_tokens=num_tokens,
+            )
+            prepare_icp_metadata(step, self.index_k_rank, self.index_k_tp)
+            return MiniMaxM3IndexerMSAMetadata(
+                seq_lens=seq_lens,
+                max_seq_len=common_attn_metadata.max_seq_len,
+                slot_mapping=common_attn_metadata.slot_mapping,
+                num_actual_tokens=num_tokens,
+                num_decodes=num_decodes,
+                num_decode_tokens=num_decode_tokens,
+                num_prefills=num_prefills,
+                num_prefill_tokens=num_prefill_tokens,
+                icp=step,
+                index_slot_mapping=shard_slot_mapping(
+                    common_attn_metadata.slot_mapping,
+                    self.index_k_rank,
+                    self.index_k_tp,
+                    self.index_k_slots,
+                ),
             )
 
         # Context (prefix) lengths into the stable cudagraph buffer.
@@ -292,15 +314,6 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
             plan["max_k_tiles"] = max_k_tiles
             cols = torch.arange(block_table.shape[1], device=block_table.device)
             valid = cols[None, :] < nvp[lo:hi].to(block_table.device)[:, None]
-            page_table = block_table[lo:hi][valid].to(torch.int32)
-            gather_pages = None
-            if self.index_k_tp > 1:
-                # Gather shared prefix pages once and remap the page table.
-                gather_pages, page_table = torch.unique(
-                    page_table, sorted=True, return_inverse=True
-                )
-                gather_pages = gather_pages.to(torch.int64)
-                page_table = page_table.to(torch.int32)
             prefill = MiniMaxM3IndexerMSAPrefillMetadata(
                 plan=plan,
                 cu_seqlens_q=(query_start_loc[lo : hi + 1] - query_start_loc[lo]).to(
@@ -308,8 +321,7 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
                 ),
                 prefix_lens=context_lens[lo:hi],
                 max_query_len=int(side_qo.max()),
-                page_table=page_table,
-                gather_pages=gather_pages,
+                page_table=block_table[lo:hi][valid].to(torch.int32),
             )
 
         return MiniMaxM3IndexerMSAMetadata(
@@ -329,7 +341,6 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
             topk_prefix_lens=context_lens,
             topk_max_query_len=common_attn_metadata.max_query_len,
             topk_num_valid_pages=num_valid_pages,
-            index_slot_mapping=index_slot_mapping,
         )
 
 
@@ -341,12 +352,17 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.index_k_ordinal = -1
-        self.index_k_rank = 0
         if self.index_cache.tp_shard > 1:
             comm = get_comm()
             assert comm is not None
+            if self.topk_indices_buffer is not comm.topk_buffer:
+                raise ValueError("ICP indexers must share one top-k output buffer")
+            if (self.init_blocks, self.local_blocks, self.score_type) != (0, 1, "max"):
+                raise ValueError(
+                    "ICP requires Top15 plus the current block and max scores"
+                )
+            self.icp_context = comm
             self.index_k_ordinal = comm.register_layer()
-            self.index_k_rank = comm.rank
 
     def forward(
         self,
@@ -358,11 +374,21 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
         md = attn_metadata[self.index_cache.prefix]
         assert isinstance(md, MiniMaxM3IndexerMSAMetadata)
 
+        if self.index_cache.tp_shard > 1:
+            assert md.icp is not None
+            self.icp_context.indexer.select(
+                md.icp,
+                index_query,
+                self.index_cache.kv_cache,
+                layer=self.index_k_ordinal,
+                scale=self.scale,
+            )
+            return None, None
+
         num_tokens = md.num_actual_tokens
         nd = md.num_decode_tokens
-        sharded = self.index_cache.tp_shard > 1
         index_q = index_query[:num_tokens].view(
-            -1, self.num_index_heads * self.index_cache.tp_shard, self.index_head_dim
+            -1, self.num_index_heads, self.index_head_dim
         )
         kv = self.index_cache.kv_cache
         # Shared persistent top-k output buffer; the unified top-k below writes
@@ -386,95 +412,36 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
             d = md.decode
             # max_decode_query_len avoids recompiles across runtime decode sizes.
             # Fall back when the flattened Q tile gets too wide for this kernel.
-            if sharded:
-                from vllm.models.minimax_m3.nvidia.ops import (
-                    index_decode_score_sharded as sharded_score,
-                )
-
-                comm = get_comm()
-                assert comm is not None
-                assert nd <= comm.max_decode_tokens
-                slot_set = comm.slot_set(self.index_k_ordinal)
-                split_k = comm.small_batch_splits.get(
-                    d.block_table.shape[0], sharded_score.DEFAULT_SPLIT_K
-                )
-                sharded_score.minimax_m3_index_decode_score_sharded_cutedsl(
-                    index_q[:nd],
-                    kv,
-                    d.block_table,
-                    d.seq_lens,
-                    comm.rank,
-                    d.decode_query_len,
-                    d.max_decode_query_len,
-                    comm.recv_bases,
-                    slot_set,
-                    comm.max_decode_tokens,
-                    split_k,
-                )
-                score_out = unified_scores[:nd]
-                nchunk = triton.cdiv(MAX_K_TILES, REDUCE_CHUNK)
-                sharded_score._index_k_max_reduce_kernel[(nd * comm.hpr, nchunk)](
-                    comm.recv[slot_set],
-                    score_out,
-                    score_out.stride(0),
-                    score_out.stride(1),
-                    d.seq_lens,
-                    d.decode_query_len,
-                    comm.errors,
-                    comm.recv.stride(1),
-                    comm.recv.stride(2),
-                    comm.recv.stride(3),
-                    W=comm.world,
-                    HPR=comm.hpr,
-                    CHUNK=REDUCE_CHUNK,
-                    SPIN=SPIN_LIMIT,
-                    num_warps=4,
-                    # Poll pushed slots under the score kernel's tail.
-                    launch_pdl=True,
-                )
-            else:
-                from vllm.models.minimax_m3.nvidia.ops import (
-                    minimax_m3_index_decode_score_cutedsl,
-                )
-
-                decode_score = (
-                    minimax_m3_index_decode_score_cutedsl
-                    if self.num_index_heads * d.max_decode_query_len <= 32
-                    else minimax_m3_index_decode_score
-                )
-                decode_score(
-                    index_q[:nd],
-                    kv,
-                    d.block_table,
-                    d.seq_lens,
-                    d.max_seq_len,
-                    self.init_blocks,
-                    self.local_blocks,
-                    self.num_kv_heads,
-                    d.decode_query_len,
-                    d.max_decode_query_len,
-                    score_out=unified_scores[:nd].transpose(0, 1),
-                )
+            decode_score = (
+                minimax_m3_index_decode_score_cutedsl
+                if self.num_index_heads * d.max_decode_query_len <= 32
+                else minimax_m3_index_decode_score
+            )
+            decode_score(
+                index_q[:nd],
+                kv,
+                d.block_table,
+                d.seq_lens,
+                d.max_seq_len,
+                self.init_blocks,
+                self.local_blocks,
+                self.num_kv_heads,
+                d.decode_query_len,
+                d.max_decode_query_len,
+                score_out=unified_scores[:nd].transpose(0, 1),
+            )
 
         if md.prefill_msa is not None:
             from vllm.third_party.fmha_sm100.api import _fmha_sm100
 
             p = md.prefill_msa
-            prefill_q = index_q[nd:]
-            if p.gather_pages is not None:
-                kv = gather_prefill_pages(kv, p.gather_pages)
-                h = self.num_index_heads
-                prefill_q = prefill_q[
-                    :, self.index_k_rank * h : (self.index_k_rank + 1) * h
-                ]
-                prefill_q = prefill_q.contiguous()
             # Index-K cache (num_blocks, 128, D) -> paged MQA (num_blocks,1,128,D).
             k_pages = kv.view(kv.shape[0], 1, PAGE_SIZE, self.index_head_dim)
             # fmha writes its max_score natively as [nnz_p, H, max_k_tiles] into
             # the prefill region (stride-aware; plan max_k_tiles forced to
             # md.max_k_tiles so the shape matches exactly -> no copy).
             _fmha_sm100(
-                prefill_q,
+                index_q[nd:],
                 k_pages,
                 k_pages,  # V placeholder; not read in OnlyScore
                 p.plan,
@@ -507,52 +474,17 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
 
 def _max_decode_query_len(vllm_config: VllmConfig) -> int:
     spec = vllm_config.speculative_config
-    n = getattr(spec, "num_speculative_tokens", None) if spec is not None else None
-    return 1 + (n or 0)
+    return 1 + (spec.num_speculative_tokens or 0) if spec is not None else 1
 
 
-def resolve_index_k_shard(
-    vllm_config: VllmConfig,
-    total_index_heads: int,
-    indexer_kv_dtype: str,
-    topk_blocks: int,
-) -> int:
-    """Return the shard factor, or 1 for unsupported/disabled deployments."""
-    mode = vllm_config.attention_config.indexer_cache_sharding
-    if mode == "off":
-        return 1
-    unsupported = _unsupported_reason(
-        vllm_config, total_index_heads, indexer_kv_dtype, topk_blocks
+def _num_sparse_layers(vllm_config: VllmConfig) -> int:
+    config = vllm_config.model_config.hf_text_config
+    frequency = config.sparse_attention_config.get("sparse_attention_freq")
+    return (
+        sum(bool(value) for value in frequency)
+        if frequency is not None
+        else config.num_hidden_layers
     )
-    if unsupported is not None:
-        logger.warning_once(
-            "MiniMax M3 index-K TP sharding (%s) not applied: %s; keeping the "
-            "replicated index-K cache",
-            mode,
-            unsupported,
-        )
-        return 1
-    tp = get_tensor_model_parallel_world_size()
-    cap = _decode_batch_cap(vllm_config)
-    max_model_len = vllm_config.model_config.max_model_len
-    if (
-        mode == "auto"
-        and cap < MIN_ACTIVE_SEQS
-        and max_model_len < LONG_CONTEXT_MIN_LEN
-    ):
-        return 1
-    if get_comm(vllm_config, total_index_heads) is None:
-        return 1
-    logger.info_once(
-        "MiniMax M3 index-K cache sharded over TP%d (%d of %d tokens per block "
-        "per rank; decode-batch cap %d, max_model_len %d)",
-        tp,
-        ROWS,
-        PAGE_SIZE,
-        cap,
-        max_model_len,
-    )
-    return tp
 
 
 def _unsupported_reason(
@@ -561,37 +493,84 @@ def _unsupported_reason(
     indexer_kv_dtype: str,
     topk_blocks: int,
 ) -> str | None:
-    tp = get_tensor_model_parallel_world_size()
-    if tp != SUPPORTED_TP:
-        return f"needs tensor_parallel_size={SUPPORTED_TP} (got {tp})"
-    if not (
-        current_platform.is_cuda() and current_platform.is_device_capability_family(100)
-    ):
-        return "needs an SM100-family (Blackwell) GPU"
-    if topk_blocks != 16:
-        return f"needs the MSA indexer (topk_blocks=16, got {topk_blocks})"
-    if indexer_kv_dtype not in ("fp8", "fp8_e4m3"):
-        return f"needs indexer_kv_dtype='fp8' (got {indexer_kv_dtype!r})"
-    if total_index_heads % tp:
-        return f"{total_index_heads} index heads do not split over TP{tp}"
     parallel = vllm_config.parallel_config
-    if (
-        getattr(parallel, "decode_context_parallel_size", 1) > 1
-        or getattr(parallel, "prefill_context_parallel_size", 1) > 1
+    tp = get_tensor_model_parallel_world_size()
+    sparse = vllm_config.model_config.hf_text_config.sparse_attention_config
+    if tp not in (2, 4):
+        return f"needs tensor_parallel_size=2 or 4 (got {tp})"
+    if not current_platform.is_cuda() or torch.cuda.get_device_capability() not in (
+        (10, 0),
+        (10, 3),
+        (10, 7),
     ):
-        return "context parallelism is not supported"
+        return "needs an SM100, SM103 or SM107 GPU"
+    if topk_blocks != 16 or total_index_heads != 4:
+        return "needs four index heads and topk_blocks=16"
+    if indexer_kv_dtype not in ("fp8", "fp8_e4m3"):
+        return "needs an FP8 E4M3 index cache"
+    if vllm_config.cache_config.block_size != PAGE_SIZE:
+        return "needs block_size=128"
+    if sparse.get("sparse_index_dim") != 128:
+        return "needs index head dimension 128"
+    if (
+        sparse.get("sparse_init_block", 0),
+        sparse.get("sparse_local_block", 0),
+        sparse.get("sparse_score_type", "max"),
+    ) != (0, 1, "max"):
+        return "needs maximum scores with only the current block forced"
+    if (
+        parallel.decode_context_parallel_size > 1
+        or parallel.prefill_context_parallel_size > 1
+    ):
+        return "cannot combine indexer sharding with attention context parallelism"
+    if parallel.pipeline_parallel_size != 1:
+        return "pipeline parallelism is not supported"
+    if _max_decode_query_len(vllm_config) > 4:
+        return "supports at most four decode query tokens per request"
     spec = vllm_config.speculative_config
-    method = getattr(spec, "method", None)
-    if method not in _SPEC_METHODS:
-        return f"speculative method {method!r} is not supported"
-    if total_index_heads * _max_decode_query_len(vllm_config) > 32:
-        return "index heads x decode query length exceed the score kernel's 32"
+    if spec is not None and spec.method not in (
+        "eagle",
+        "eagle3",
+        "ngram",
+        "suffix",
+        "draft_model",
+    ):
+        return "the speculative method reuses target sparse layers"
+    if _num_sparse_layers(vllm_config) < 2 or _num_sparse_layers(vllm_config) % 3 == 1:
+        return "the sparse-layer count repeats a peer-memory slot at step boundaries"
+    if vllm_config.model_config.max_model_len > MAX_K_TILES * PAGE_SIZE:
+        return "supports at most 8192 index blocks"
     return None
 
 
-def _decode_batch_cap(vllm_config: VllmConfig) -> int:
-    sched = vllm_config.scheduler_config
-    return getattr(sched, "max_num_active_seqs", None) or sched.max_num_seqs
+def resolve_index_k_shard(
+    vllm_config: VllmConfig,
+    total_index_heads: int,
+    indexer_kv_dtype: str,
+    topk_blocks: int,
+    *,
+    topk_indices_buffer: torch.Tensor | None = None,
+) -> int:
+    """Resolve independent index-cache sharding before allocating model weights."""
+    mode = vllm_config.attention_config.indexer_cache_sharding
+    if mode == "off":
+        return 1
+    if mode == "auto":
+        logger.warning_once(
+            "Automatic indexer context parallelism is not yet qualified; "
+            "use indexer_cache_sharding='on' to opt in."
+        )
+        return 1
+    unsupported = _unsupported_reason(
+        vllm_config, total_index_heads, indexer_kv_dtype, topk_blocks
+    )
+    if unsupported is not None:
+        logger.warning_once("Indexer context parallelism disabled: %s", unsupported)
+        return 1
+    comm = get_comm(
+        vllm_config, total_index_heads, topk_indices_buffer=topk_indices_buffer
+    )
+    return comm.world if comm is not None else 1
 
 
 class _IndexKInitError(RuntimeError):
@@ -606,8 +585,8 @@ def _local_init() -> Iterator[None]:
     error = None
     try:
         yield
-    except Exception as e:  # noqa: BLE001 - coordinate local setup failures
-        error = e
+    except Exception as exc:  # noqa: BLE001 - every rank must finish the consensus
+        error = exc
     ok = torch.tensor([int(error is None)], dtype=torch.int32, device="cpu")
     torch.distributed.all_reduce(
         ok, op=torch.distributed.ReduceOp.MIN, group=get_tp_group().cpu_group
@@ -616,313 +595,149 @@ def _local_init() -> Iterator[None]:
         raise _IndexKInitError(f"Local initialization failed: {error!r}") from error
 
 
-def get_comm(
-    vllm_config: VllmConfig | None = None, total_index_heads: int = 0
-) -> "IndexKShardComm | None":
-    """Process-wide receive buffers; created (collectively) on first use."""
-    global _COMM, _COMM_FAILED
-    if _COMM is not None or _COMM_FAILED or vllm_config is None:
-        return _COMM
-    try:
-        comm = IndexKShardComm(vllm_config, total_index_heads)
-    except _IndexKInitError as error:
-        logger.warning(
-            "MiniMax M3 index-K sharding disabled: symmetric memory set-up failed (%r)",
-            error,
-        )
-        _COMM_FAILED = True
-        return None
-    _init_page_gather(vllm_config)
-    _COMM = comm
-    return _COMM
-
-
-def _init_page_gather(vllm_config: VllmConfig) -> None:
-    """Use NCCL gather on every rank if symmetric staging is unavailable."""
-    global _GATHER
-    sparse_cfg = vllm_config.model_config.hf_text_config.sparse_attention_config
-    try:
-        gather = PageGather(int(sparse_cfg["sparse_index_dim"]))
-    except _IndexKInitError as error:
-        logger.warning(
-            "MiniMax M3 index-K symmetric page gather disabled (%r); "
-            "prefill pages use the NCCL all_gather",
-            error,
-        )
-        return
-    _GATHER = gather
-
-
 class IndexKShardComm:
-    """Symmetric receive slots shared by every sharded indexer layer.
+    """One ICP indexer and transport shared by this model's sparse layers."""
 
-    ``recv[set, src, h, t, tile]`` (fp32 bits, sentinel -1) holds rank ``src``'s
-    partial maximum of this rank's head ``h`` for decode token ``t``.
-    """
-
-    def __init__(self, vllm_config: VllmConfig, total_index_heads: int) -> None:
+    def __init__(
+        self,
+        vllm_config: VllmConfig,
+        total_index_heads: int,
+        topk_indices_buffer: torch.Tensor | None = None,
+    ) -> None:
         from vllm.distributed.parallel_state import get_tp_group
 
         with _local_init():
-            import torch.distributed._symmetric_memory as symm_mem
+            from vllm.third_party.fmha_sm100.icp import IcpIndexer, prewarm
 
             group = get_tp_group()
-            self.world = group.world_size
-            self.rank = group.rank_in_group
-            self.hpr = total_index_heads // self.world
-            self.max_decode_tokens = (
-                vllm_config.scheduler_config.max_num_seqs
-                * _max_decode_query_len(vllm_config)
-            )
-            self.small_batch_splits = (
-                SMALL_BATCH_SPLITS
-                if _decode_batch_cap(vllm_config) < MIN_ACTIVE_SEQS
-                else {}
-            )
-            self.device = torch.device("cuda", torch.accelerator.current_device_index())
-            shape = (
-                NUM_SLOT_SETS,
-                self.world,
-                self.hpr,
-                self.max_decode_tokens,
-                MAX_K_TILES,
-            )
-            self.recv = symm_mem.empty(shape, dtype=torch.int32, device=self.device)
-            self.recv.fill_(SENTINEL)
-            self.recv_bases = torch.empty(
-                self.world, dtype=torch.int64, device=self.device
-            )
-            self.errors = torch.zeros(1, dtype=torch.int32, device=self.device)
+            self.world, self.rank = group.world_size, group.rank_in_group
             self.num_layers = 0
-            torch.accelerator.synchronize(self.device)
-        handle = symm_mem.rendezvous(self.recv, group.device_group.group_name)
+            self.expected_layers = _num_sparse_layers(vllm_config)
+            device = torch.device("cuda", torch.accelerator.current_device_index())
+            scheduler = vllm_config.scheduler_config
+            capacity = (scheduler.max_num_batched_tokens + 3) // 4 * 4
+            if topk_indices_buffer is None:
+                topk_indices_buffer = torch.empty(
+                    (capacity, total_index_heads // self.world, 16),
+                    dtype=torch.int32,
+                    device=device,
+                )
+            if tuple(topk_indices_buffer.shape) != (
+                capacity,
+                total_index_heads // self.world,
+                16,
+            ):
+                raise ValueError(
+                    "ICP top-k output has an incompatible capacity or heads"
+                )
+            self.topk_buffer = topk_indices_buffer
+            prewarm.warm(page_size=PAGE_SIZE, world_size=self.world)
+            torch.accelerator.synchronize(device)
+
         with _local_init():
-            assert handle is not None
-            self.handle = handle
-            bases = [int(p) for p in handle.buffer_ptrs]
-            assert bases[self.rank] == self.recv.data_ptr()
-            self.recv_bases.copy_(torch.tensor(bases, dtype=torch.int64, device="cpu"))
-            torch.accelerator.synchronize(self.device)
-        logger.info_once(
-            "MiniMax M3 index-K shard exchange: %.1f MiB symmetric receive slots "
-            "(max %d decode tokens)",
-            self.recv.numel() * 4 / (1 << 20),
-            self.max_decode_tokens,
-        )
+            self.indexer = IcpIndexer(
+                group=group.device_group,
+                control_group=group.cpu_group,
+                rank=self.rank,
+                topk_buffer=self.topk_buffer,
+                num_sparse_layers=self.expected_layers,
+                index_head_dim=128,
+                max_model_len=vllm_config.model_config.max_model_len,
+                max_num_batched_tokens=scheduler.max_num_batched_tokens,
+                max_num_seqs=scheduler.max_num_seqs,
+                cudagraph_capture_sizes=vllm_config.compilation_config.cudagraph_capture_sizes,
+                page_size=PAGE_SIZE,
+            )
+        try:
+            with _local_init():
+                from vllm.models.minimax_m3.nvidia.ops.icp_metadata import (
+                    prepare_icp_metadata,
+                )
+
+                max_query = _max_decode_query_len(vllm_config)
+                self.indexer.allocate(max_decode_query_len=max_query)
+                qsl_cpu = torch.tensor([0, 1], dtype=torch.int32, device="cpu")
+                lengths_cpu = torch.tensor([1], dtype=torch.int32, device="cpu")
+                step = self.indexer.plan(
+                    block_table=torch.zeros((1, 1), dtype=torch.int32, device=device),
+                    query_start_loc=qsl_cpu.to(device),
+                    query_start_loc_cpu=qsl_cpu,
+                    seq_lens=lengths_cpu.to(device),
+                    seq_lens_cpu_upper_bound=lengths_cpu,
+                    is_prefilling=torch.tensor([True], device="cpu"),
+                    num_reqs=1,
+                    num_tokens=1,
+                )
+                prepare_icp_metadata(step, self.rank, self.world)
+                torch.accelerator.synchronize(device)
+                self.indexer.allocate(max_decode_query_len=max_query)
+        except _IndexKInitError:
+            self.indexer.close()
+            raise
+        self.errors = self.indexer._exchange._status
+        self.k2_errors = self.indexer._exchange._k2_status
 
     def register_layer(self) -> int:
-        """Ordinal of a sharded indexer layer (layers run in ordinal order)."""
+        if self.num_layers >= self.expected_layers:
+            raise ValueError("More ICP layers registered than the model configuration")
+        ordinal = self.num_layers
         self.num_layers += 1
-        return self.num_layers - 1
+        return ordinal
 
-    def slot_set(self, ordinal: int) -> int:
-        """Alternate slot sets across layers and steps. Before reusing a set,
-        each rank has consumed its peers' next pushes, issued after their reset.
-        """
-        n = self.num_layers
-        if n % 2 == 0:
-            return ordinal % 2
-        if n % 3 == 0:
-            return ordinal % 3
-        return 2 if ordinal == n - 1 else ordinal % 2
+    def close(self) -> None:
+        self.indexer.close()
 
 
-class PageGather:
-    """One-sided prefill page gather over symmetric staging buffers.
-
-    ``stage[s, p]`` holds this rank's ``[ROWS, D]`` rows of the ``p``-th
-    requested page; ``flags[src]`` holds the last gather epoch whose rows rank
-    ``src`` has staged. Gather epoch ``e`` uses stage ``s = e % GATHER_STAGES``:
-
-    1. ``_index_k_stage_pages_kernel`` copies this rank's rows of the pages into
-       ``stage[s]``; its last program stores ``e`` into every rank's
-       ``flags[rank]`` (release, system scope).
-    2. ``_index_k_pull_pages_kernel`` waits until every ``flags[src] >= e``
-       (acquire) and copies row ``i`` of every rank's ``stage[s, p]`` to row
-       ``i * tp + src`` of full page ``p``: the bytes the NCCL all_gather +
-       re-interleave produce.
-
-    A rank restages ``stage[s]`` at epoch ``e + 2`` only after its pull of
-    ``e + 1``, which waited for every peer's staging of ``e + 1``; a peer stages
-    ``e + 1`` only after its pull of ``e`` has read ``stage[s]``. Every rank
-    issues the same gathers (same steps and layers) in the same order.
-    """
-
-    def __init__(self, index_dim: int) -> None:
-        from vllm.distributed.parallel_state import get_tp_group
-
-        with _local_init():
-            import torch.distributed._symmetric_memory as symm_mem
-
-            from vllm.models.minimax_m3.nvidia.ops.index_k_gather import (
-                _index_k_pull_pages_kernel,
-                _index_k_stage_pages_kernel,
-            )
-
-            group = get_tp_group()
-            self.world = group.world_size
-            self.rank = group.rank_in_group
-            self.row_words = index_dim // 4
-            self.page_words = ROWS * self.row_words
-            assert index_dim % 16 == 0
-            self.device = torch.device("cuda", torch.accelerator.current_device_index())
-            name = group.device_group.group_name
-            self.stage = symm_mem.empty(
-                (GATHER_STAGES, GATHER_MAX_PAGES, self.page_words),
-                dtype=torch.int32,
-                device=self.device,
-            )
-            self.flags = symm_mem.empty(
-                (self.world,), dtype=torch.int64, device=self.device
-            )
-            self.flags.zero_()
-            self.stage_bases = torch.empty(
-                self.world, dtype=torch.int64, device=self.device
-            )
-            self.flag_bases = torch.empty_like(self.stage_bases)
-            self.counter = torch.zeros(1, dtype=torch.int64, device=self.device)
-            self.epoch = GATHER_EPOCH0
-            # Compile/load without peer polling; only pointer dtypes matter.
-            _index_k_stage_pages_kernel.warmup(
-                self.stage,
-                self.page_words,
-                self.flags,
-                self.stage,
-                self.counter,
-                2,
-                self.flag_bases,
-                self.rank,
-                self.epoch,
-                W=self.world,
-                PAGE_WORDS=self.page_words,
-                num_warps=4,
-                grid=(2,),
-            )._init_handles()
-            _index_k_pull_pages_kernel.warmup(
-                self.flags,
-                self.epoch,
-                self.stage_bases,
-                0,
-                self.stage,
-                W=self.world,
-                ROWS=ROWS,
-                ROW_WORDS=self.row_words,
-                num_warps=8,
-                grid=(2,),
-            )._init_handles()
-            torch.accelerator.synchronize(self.device)
-        stage_handle = symm_mem.rendezvous(self.stage, name)
-        flags_handle = symm_mem.rendezvous(self.flags, name)
-        with _local_init():
-            assert stage_handle is not None and flags_handle is not None
-            assert int(stage_handle.buffer_ptrs[self.rank]) == self.stage.data_ptr()
-            assert int(flags_handle.buffer_ptrs[self.rank]) == self.flags.data_ptr()
-            self.handles = (stage_handle, flags_handle)
-            self.stage_bases.copy_(
-                torch.tensor(stage_handle.buffer_ptrs, dtype=torch.int64, device="cpu")
-            )
-            self.flag_bases.copy_(
-                torch.tensor(flags_handle.buffer_ptrs, dtype=torch.int64, device="cpu")
-            )
-            torch.accelerator.synchronize(self.device)
-        logger.info_once(
-            "MiniMax M3 index-K prefill pages gathered one-sided over symmetric "
-            "memory: %d x %.1f MiB staging (up to %d pages per step)",
-            GATHER_STAGES,
-            self.stage[0].numel() * 4 / (1 << 20),
-            GATHER_MAX_PAGES,
-        )
-
-    def gather(
-        self, kv_shard: torch.Tensor, pages: torch.Tensor
-    ) -> torch.Tensor | None:
-        """Full ``[P, 128, D]`` pages, or None when the step does not fit."""
-        from vllm.models.minimax_m3.nvidia.ops.index_k_gather import (
-            _index_k_pull_pages_kernel,
-            _index_k_stage_pages_kernel,
-        )
-
-        num_pages = pages.numel()
-        _, rows, dim = kv_shard.shape
+def get_comm(
+    vllm_config: VllmConfig | None = None,
+    total_index_heads: int = 0,
+    *,
+    topk_indices_buffer: torch.Tensor | None = None,
+) -> IndexKShardComm | None:
+    """Create the model-scoped ICP state collectively before the cache is allocated."""
+    if vllm_config is None:
+        vllm_config = get_current_vllm_config_or_none()
+    if vllm_config is None:
+        return None
+    key = id(vllm_config)
+    entry = _ICP_STATES.get(key)
+    if entry is not None and entry[1] is None:
+        return None  # Coordinated initialization failed for this configuration.
+    state = entry[1] if entry is not None else None
+    if state is not None:
         if (
-            num_pages == 0
-            or num_pages > GATHER_MAX_PAGES
-            or rows != ROWS
-            or dim != self.row_words * 4
-            or kv_shard.stride(2) != 1
-            or kv_shard.stride(1) != dim
-            or kv_shard.stride(0) % 4
+            topk_indices_buffer is not None
+            and topk_indices_buffer is not state.topk_buffer
         ):
-            return None
-        kv_words = kv_shard.view(torch.uint8).view(torch.int32)
-        self.epoch += 1
-        stage = (self.epoch % GATHER_STAGES) * GATHER_MAX_PAGES * self.page_words
-        _index_k_stage_pages_kernel[(num_pages,)](
-            kv_words,
-            kv_words.stride(0),
-            pages,
-            self.stage.view(-1)[stage:],
-            self.counter,
-            num_pages,
-            self.flag_bases,
-            self.rank,
-            self.epoch,
-            W=self.world,
-            PAGE_WORDS=self.page_words,
-            num_warps=4,
+            raise ValueError("ICP state belongs to a different model output buffer")
+        return state
+    if total_index_heads == 0:
+        return None
+    try:
+        state = IndexKShardComm(vllm_config, total_index_heads, topk_indices_buffer)
+    except _IndexKInitError as error:
+        logger.warning(
+            "Indexer context parallelism disabled after setup failure: %r", error
         )
-        full = torch.empty(
-            (num_pages, ROWS * self.world, self.row_words * 4),
-            dtype=torch.uint8,
-            device=kv_shard.device,
-        )
-        _index_k_pull_pages_kernel[(num_pages,)](
-            self.flags,
-            self.epoch,
-            self.stage_bases,
-            stage,
-            full.view(torch.int32),
-            W=self.world,
-            ROWS=ROWS,
-            ROW_WORDS=self.row_words,
-            num_warps=8,
-        )
-        return full.view(kv_shard.dtype)
+        state = None
+    _ICP_STATES[key] = (
+        weakref.ref(vllm_config, lambda _: _ICP_STATES.pop(key, None)),
+        state,
+    )
+    return state
 
 
 def shard_slot_mapping(
     slot_mapping: torch.Tensor, rank: int, tp: int, out: torch.Tensor
 ) -> torch.Tensor:
-    """Remap block-size-128 slots to rows of the ``[num_blocks, 128 // tp, D]``
-    shard; slots of other ranks' tokens (and padding) become -1."""
-    n = slot_mapping.numel()
-    s = slot_mapping
-    off = torch.remainder(s, PAGE_SIZE)
-    own = (s >= 0) & (torch.remainder(off, tp) == rank)
-    row = torch.div(s, PAGE_SIZE, rounding_mode="floor") * (PAGE_SIZE // tp) + off // tp
-    out = out[:n]
-    out.copy_(row.masked_fill_(~own, -1))
-    return out
-
-
-def gather_prefill_pages(kv_shard: torch.Tensor, pages: torch.Tensor) -> torch.Tensor:
-    """Full ``[P, 128, D]`` index-K pages of ``pages`` from every rank's shard
-    (token ``i * tp + r`` of a block comes from rank ``r``'s row ``i``)."""
-    from vllm.distributed.parallel_state import get_tp_group
-
-    if _GATHER is not None:
-        full = _GATHER.gather(kv_shard, pages)
-        if full is not None:
-            return full
-    group = get_tp_group()
-    tp = group.world_size
-    num_pages = pages.numel()
-    _, rows, dim = kv_shard.shape
-    local = kv_shard.view(torch.uint8).index_select(0, pages)
-    gathered = group.all_gather(local, dim=0)
-    full = (
-        gathered.view(tp, num_pages, rows, dim)
-        .permute(1, 2, 0, 3)
-        .reshape(num_pages, rows * tp, dim)
+    """Map P128 slots to each rank's contiguous fragment in its independent cache."""
+    rows = PAGE_SIZE // tp
+    offset = slot_mapping % PAGE_SIZE
+    own = (slot_mapping >= 0) & (offset // rows == rank)
+    local = (
+        torch.div(slot_mapping, PAGE_SIZE, rounding_mode="floor") * rows + offset % rows
     )
-    return full.view(kv_shard.dtype)
+    out.fill_(-1)
+    out = out[: slot_mapping.numel()]
+    out.copy_(local.masked_fill_(~own, -1))
+    return out

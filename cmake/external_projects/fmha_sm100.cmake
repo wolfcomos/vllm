@@ -62,6 +62,12 @@ install(DIRECTORY "${FMHA_SM100_PY_ROOT}/decode_q8kv4/"
   PATTERN "__pycache__" EXCLUDE
   PATTERN "*.pyc" EXCLUDE)
 
+install(DIRECTORY "${FMHA_SM100_PY_ROOT}/icp/"
+  DESTINATION vllm/third_party/fmha_sm100/icp
+  COMPONENT fmha_sm100
+  PATTERN "__pycache__" EXCLUDE
+  PATTERN "*.pyc" EXCLUDE)
+
 install(DIRECTORY "${FMHA_SM100_PY_ROOT}/kvouter/"
   DESTINATION vllm/third_party/fmha_sm100/kvouter
   COMPONENT fmha_sm100

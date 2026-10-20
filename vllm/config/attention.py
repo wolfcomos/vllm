@@ -98,7 +98,7 @@ class AttentionConfig:
     support in the backend."""
 
     indexer_cache_sharding: IndexerCacheSharding = "off"
-    """Shard the indexer cache across TP ranks on supported backends.
+    """Use context-parallel indexing and a sharded index cache on supported backends.
     "auto" uses backend-specific selection criteria; "on" requests sharding
     wherever supported."""
 

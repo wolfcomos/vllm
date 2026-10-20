@@ -574,36 +574,47 @@ def test_sparse_full_fp8_index(num_tokens, block_size, num_kv_heads):
         from vllm.models.minimax_m3.common.indexer import MiniMaxM3IndexerCache
         from vllm.models.minimax_m3.nvidia.indexer_msa import shard_slot_mapping
 
-        with set_current_vllm_config(VllmConfig()):
-            cache = MiniMaxM3IndexerCache(
-                HEAD_DIM, prefix="index_cache", indexer_kv_dtype="fp8", tp_shard=4
-            )
-        for rank in range(4):
-            packed = torch.zeros(
-                num_blocks,
-                1,
-                block_size,
-                HEAD_DIM // 4,
-                dtype=torch.float8_e4m3fn,
-                device=device,
-            )
-            cache.bind_kv_cache(packed)
-            assert cache.kv_cache.data_ptr() == packed.data_ptr()
-            index_slots = shard_slot_mapping(
-                index_slot_mapping, rank, 4, torch.empty_like(index_slot_mapping)
-            )
-            qkv_sh, kvc_sh, idxc_sh, qo_sh, iq_sh = run(
-                torch.float8_e4m3fn, cache.kv_cache, index_slots
-            )
-            # Sharding only changes index-K storage; all query heads and the
-            # main KV insert must be identical to the unsharded run.
-            for actual, expected in zip(
-                (qkv_sh, kvc_sh, qo_sh, iq_sh), (qkv_fp, kvc_fp, qo_fp, iq_fp)
-            ):
-                assert torch.equal(actual.view(torch.uint8), expected.view(torch.uint8))
-            assert torch.equal(
-                idxc_sh.view(torch.uint8), idxc_fp[:, rank::4].view(torch.uint8)
-            )
+        for tp_size in (2, 4):
+            rows = block_size // tp_size
+            with set_current_vllm_config(VllmConfig()):
+                cache = MiniMaxM3IndexerCache(
+                    HEAD_DIM,
+                    prefix="index_cache",
+                    indexer_kv_dtype="fp8",
+                    tp_shard=tp_size,
+                )
+            for rank in range(tp_size):
+                packed = torch.zeros(
+                    num_blocks,
+                    1,
+                    block_size,
+                    HEAD_DIM // tp_size,
+                    dtype=torch.float8_e4m3fn,
+                    device=device,
+                )
+                cache.bind_kv_cache(packed)
+                assert cache.kv_cache.data_ptr() == packed.data_ptr()
+                index_slots = shard_slot_mapping(
+                    index_slot_mapping,
+                    rank,
+                    tp_size,
+                    torch.empty_like(index_slot_mapping),
+                )
+                qkv_sh, kvc_sh, idxc_sh, qo_sh, iq_sh = run(
+                    torch.float8_e4m3fn, cache.kv_cache, index_slots
+                )
+                # Sharding only changes index-K storage; all query heads and the
+                # main KV insert must be identical to the unsharded run.
+                for actual, expected in zip(
+                    (qkv_sh, kvc_sh, qo_sh, iq_sh), (qkv_fp, kvc_fp, qo_fp, iq_fp)
+                ):
+                    assert torch.equal(
+                        actual.view(torch.uint8), expected.view(torch.uint8)
+                    )
+                assert torch.equal(
+                    idxc_sh.view(torch.uint8),
+                    idxc_fp[:, rank * rows : (rank + 1) * rows].view(torch.uint8),
+                )
 
 
 # ── Test 5: sparse mode with an NVFP4 main KV cache ──────────────────────────
