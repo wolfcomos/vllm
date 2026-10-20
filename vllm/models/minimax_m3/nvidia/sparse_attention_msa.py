@@ -198,15 +198,7 @@ class MiniMaxM3SparseMSAMetadataBuilder(MiniMaxM3SparseMetadataBuilder):
             return metadata
 
         msa_cutlass = None
-        if self.indexer_builder is not None:
-            msa_cutlass = self.msa_cutlass_plan_cache.prepare_compound(
-                decode.block_table,
-                decode.seq_lens,
-                decode.decode_query_len,
-                num_q_heads=self.num_q_heads,
-                num_kv_heads=self.num_kv_heads,
-            )
-        elif should_prepare_decode_metadata(
+        if should_prepare_decode_metadata(
             metadata.num_decodes,
             decode.decode_query_len,
             decode_backend=self.decode_backend,
