@@ -57,13 +57,14 @@ from vllm.v1.attention.backends.utils import split_decodes_and_prefills
 from vllm.v1.kv_cache_interface import AttentionSpec
 
 if TYPE_CHECKING:
+    from vllm.config import CompilationConfig
     from vllm.third_party.fmha_sm100.icp.indexer import IcpStep
 
 logger = init_logger(__name__)
 _ICP_STATES: dict[
     int,
     tuple[
-        weakref.ReferenceType[VllmConfig],
+        weakref.ReferenceType["CompilationConfig"],
         "IndexKShardComm | None",
     ],
 ] = {}
@@ -525,6 +526,8 @@ def _unsupported_reason(
         return "cannot combine indexer sharding with attention context parallelism"
     if parallel.pipeline_parallel_size != 1:
         return "pipeline parallelism is not supported"
+    if parallel.use_ubatching:
+        return "microbatching needs separate indexer metadata and transport state"
     if _max_decode_query_len(vllm_config) > 4:
         return "supports at most four decode query tokens per request"
     spec = vllm_config.speculative_config
@@ -699,7 +702,8 @@ def get_comm(
         vllm_config = get_current_vllm_config_or_none()
     if vllm_config is None:
         return None
-    key = id(vllm_config)
+    owner = vllm_config.compilation_config
+    key = id(owner)
     entry = _ICP_STATES.get(key)
     if entry is not None and entry[1] is None:
         return None  # Coordinated initialization failed for this configuration.
@@ -721,7 +725,7 @@ def get_comm(
         )
         state = None
     _ICP_STATES[key] = (
-        weakref.ref(vllm_config, lambda _: _ICP_STATES.pop(key, None)),
+        weakref.ref(owner, lambda _: _ICP_STATES.pop(key, None)),
         state,
     )
     return state

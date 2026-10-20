@@ -55,12 +55,15 @@ def _indexer_sharding(monkeypatch, tp_size, pp_size, rank, distributed_init_port
                 tp_size, pp_size, rank, distributed_init_port
             )
             _check_initialization_fallback(config, rank, topk)
-            assert (
-                msa.resolve_index_k_shard(
-                    config, 4, "fp8", 16, topk_indices_buffer=topk
+            text_config = config.with_hf_config(config.model_config.hf_text_config)
+            with set_current_vllm_config(text_config):
+                assert (
+                    msa.resolve_index_k_shard(
+                        text_config, 4, "fp8", 16, topk_indices_buffer=topk
+                    )
+                    == tp_size
                 )
-                == tp_size
-            )
+            del text_config
             comm = msa.get_comm()
             assert comm is not None
             _check_indexer_forwards(config, device, rank, tp_size, comm, topk)
@@ -73,9 +76,15 @@ def _check_initialization_fallback(config, rank, topk):
 
     from vllm.models.minimax_m3.nvidia import indexer_msa as msa
 
+    for name, value in (("enable_dbo", True), ("ubatch_size", 2)):
+        with pytest.MonkeyPatch.context() as m:
+            m.setattr(config.parallel_config, name, value)
+            assert msa.resolve_index_k_shard(config, 4, "fp8", 16) == 1
+
     for failure in ("allocation", "compile"):
         with pytest.MonkeyPatch.context() as m:
-            msa._ICP_STATES.pop(id(config), None)
+            key = id(config.compilation_config)
+            msa._ICP_STATES.pop(key, None)
             injected = False
 
             def fail(*args, **kwargs):
@@ -97,9 +106,10 @@ def _check_initialization_fallback(config, rank, topk):
                 assert injected == (rank == 1)
                 assert shard == 1
                 assert msa.get_comm() is None
-                assert msa._ICP_STATES[id(config)][1] is None
+                assert msa._ICP_STATES[key][1] is None
             finally:
                 faulthandler.cancel_dump_traceback_later()
+    msa._ICP_STATES.pop(id(config.compilation_config), None)
 
 
 def _check_indexer_forwards(config, device, rank, tp_size, comm, topk):
