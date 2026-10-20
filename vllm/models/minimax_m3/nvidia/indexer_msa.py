@@ -17,6 +17,8 @@ Decode scores with CuteDSL when the flattened query tile is supported and fall
 back to Triton otherwise, writing into the decode region. Only the top-k is
 shared with prefill.
 
+Sharded decode selects local candidates and merges them at each head owner.
+
 ``fmha_sm100`` imports are function-local so this module is import-safe on
 AMD / non-SM100.
 """
@@ -46,7 +48,6 @@ from vllm.models.minimax_m3.common.ops.index_topk import (
     minimax_m3_index_decode_score,
 )
 from vllm.platforms import current_platform
-from vllm.triton_utils import triton
 from vllm.v1.attention.backend import (
     AttentionBackend,
     AttentionCGSupport,
@@ -80,8 +81,7 @@ SUPPORTED_TP = 4
 ROWS = PAGE_SIZE // SUPPORTED_TP
 # Receive slot sets the layers rotate over.
 NUM_SLOT_SETS = 3
-SENTINEL = -1  # 0xFFFFFFFF: a NaN, which no score is
-REDUCE_CHUNK = 512
+TOPK = 16
 SPIN_LIMIT = 1 << 26
 # Speculative methods whose drafter does not reuse the target's sparse layers.
 _SPEC_METHODS = (None, "eagle", "eagle3", "ngram", "suffix", "draft_model")
@@ -379,9 +379,10 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
         # the top-k never picks an unwritten tile.
         unified_scores = md.unified_scores
         assert unified_scores is not None
+        num_valid_pages = md.topk_num_valid_pages
+        assert num_valid_pages is not None
+        from vllm.third_party.fmha_sm100.api import sparse_topk_select
 
-        # Decode scores -> unified[:nd] (transposed [H, nd, MK] view; the kernel
-        # writes by strides). Top-k is deferred to the single unified call below.
         if md.decode is not None:
             d = md.decode
             # max_decode_query_len avoids recompiles across runtime decode sizes.
@@ -398,6 +399,8 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
                 split_k = comm.small_batch_splits.get(
                     d.block_table.shape[0], sharded_score.DEFAULT_SPLIT_K
                 )
+                scores = comm.scores[:nd]
+                candidates = comm.candidates[:nd]
                 sharded_score.minimax_m3_index_decode_score_sharded_cutedsl(
                     index_q[:nd],
                     kv,
@@ -406,31 +409,38 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
                     comm.rank,
                     d.decode_query_len,
                     d.max_decode_query_len,
-                    comm.recv_bases,
-                    slot_set,
-                    comm.max_decode_tokens,
+                    scores,
                     split_k,
                 )
-                score_out = unified_scores[:nd]
-                nchunk = triton.cdiv(MAX_K_TILES, REDUCE_CHUNK)
-                sharded_score._index_k_max_reduce_kernel[(nd * comm.hpr, nchunk)](
-                    comm.recv[slot_set],
-                    score_out,
-                    score_out.stride(0),
-                    score_out.stride(1),
-                    d.seq_lens,
-                    d.decode_query_len,
+                sparse_topk_select(
+                    scores,
+                    self.topk_blocks,
+                    num_valid_pages=num_valid_pages[:nd],
+                    force_begin_blocks=self.init_blocks,
+                    force_end_blocks=self.local_blocks,
+                    output=candidates,
+                    max_score_layout="THK",
+                )
+                sharded_score.minimax_m3_index_publish_candidates(
+                    scores,
+                    candidates,
+                    comm.recv_bases,
+                    slot_set,
+                    comm.rank,
+                    comm.max_decode_tokens,
                     comm.errors,
-                    comm.recv.stride(1),
-                    comm.recv.stride(2),
-                    comm.recv.stride(3),
-                    W=comm.world,
-                    HPR=comm.hpr,
-                    CHUNK=REDUCE_CHUNK,
-                    SPIN=SPIN_LIMIT,
-                    num_warps=4,
-                    # Poll pushed slots under the score kernel's tail.
-                    launch_pdl=True,
+                    world_size=comm.world,
+                    heads_per_rank=comm.hpr,
+                    spin_limit=SPIN_LIMIT,
+                )
+                sharded_score.minimax_m3_index_merge_candidates(
+                    comm.recv[slot_set],
+                    num_valid_pages[:nd],
+                    buf[:nd],
+                    comm.errors,
+                    init_blocks=self.init_blocks,
+                    local_blocks=self.local_blocks,
+                    spin_limit=SPIN_LIMIT,
                 )
             else:
                 from vllm.models.minimax_m3.nvidia.ops import (
@@ -485,21 +495,17 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
                 max_score=unified_scores[nd:],
             )
 
-        # Single top-k over the unified buffer via fmha_sm100 sparse_topk_select
-        # (THK, no transpose) into ``buf``. num_valid_pages drives force_end_blocks
-        # (always keep each token's local block; fmha OnlyScore won't) + the -1
-        # out-of-range clamp.
-        from vllm.third_party.fmha_sm100.api import sparse_topk_select
-
-        sparse_topk_select(
-            unified_scores,
-            self.topk_blocks,
-            num_valid_pages=md.topk_num_valid_pages,
-            force_begin_blocks=self.init_blocks,
-            force_end_blocks=self.local_blocks,
-            output=buf[:num_tokens],
-            max_score_layout="THK",
-        )
+        start = nd if sharded else 0
+        if start < num_tokens:
+            sparse_topk_select(
+                unified_scores[start:],
+                self.topk_blocks,
+                num_valid_pages=num_valid_pages[start:],
+                force_begin_blocks=self.init_blocks,
+                force_end_blocks=self.local_blocks,
+                output=buf[start:num_tokens],
+                max_score_layout="THK",
+            )
 
         # The attend reads ``buf`` directly; this return is vestigial.
         return None, None
@@ -656,8 +662,7 @@ def _init_page_gather(vllm_config: VllmConfig) -> None:
 class IndexKShardComm:
     """Symmetric receive slots shared by every sharded indexer layer.
 
-    ``recv[set, src, h, t, tile]`` (fp32 bits, sentinel -1) holds rank ``src``'s
-    partial maximum of this rank's head ``h`` for decode token ``t``.
+    Each ``recv[set, src, h, t]`` holds 16 scores, 16 block IDs and a ready flag.
     """
 
     def __init__(self, vllm_config: VllmConfig, total_index_heads: int) -> None:
@@ -685,10 +690,20 @@ class IndexKShardComm:
                 self.world,
                 self.hpr,
                 self.max_decode_tokens,
-                MAX_K_TILES,
+                2 * TOPK + 1,
             )
             self.recv = symm_mem.empty(shape, dtype=torch.int32, device=self.device)
-            self.recv.fill_(SENTINEL)
+            self.recv.zero_()
+            self.scores = torch.empty(
+                (self.max_decode_tokens, total_index_heads, MAX_K_TILES),
+                dtype=torch.float32,
+                device=self.device,
+            )
+            self.candidates = torch.empty(
+                (self.max_decode_tokens, total_index_heads, TOPK),
+                dtype=torch.int32,
+                device=self.device,
+            )
             self.recv_bases = torch.empty(
                 self.world, dtype=torch.int64, device=self.device
             )

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
-"""Decode index scores over TP4-sharded FP8 keys, pushing maxima to head owners."""
+"""Decode index scores over TP4-sharded FP8 keys and exchange top-k candidates."""
 
 from functools import cache
 
@@ -8,9 +8,7 @@ import cutlass
 import torch
 from cuda.bindings.driver import CUstream
 from cutlass import Float8E4M3FN, Float16, Float32, Int32, Int64, cute
-from cutlass._mlir.dialects import llvm
 from cutlass.cute.nvgpu import cpasync, warp
-from cutlass.cutlass_dsl import T, dsl_user_op
 from quack.compile_utils import make_fake_tensor
 
 from vllm.cute_utils import EVICT_FIRST, mma_sync, simple_tma_copy
@@ -24,30 +22,8 @@ ROWS = 32  # Local token rows per block, handled by one MMA warp.
 SUPPORTED_TP = BLOCK // ROWS
 DEFAULT_SPLIT_K = 128
 MAX_K_TILES = 8192  # Matches the unified score buffer.
-
-
-@dsl_user_op
-def _store_relaxed_sys_v4_f32(
-    addr: Int64,
-    v0: Float32,
-    v1: Float32,
-    v2: Float32,
-    v3: Float32,
-    *,
-    loc=None,
-    ip=None,
-) -> None:
-    llvm.inline_asm(
-        T.i32(),
-        [addr.ir_value(loc=loc, ip=ip)]
-        + [v.ir_value(loc=loc, ip=ip) for v in (v0, v1, v2, v3)],
-        "mov.u32 $0, 0;\n\tst.relaxed.sys.global.v4.f32 [$1], {$2, $3, $4, $5};",
-        "=r,l,f,f,f,f",
-        has_side_effects=True,
-        is_align_stack=False,
-        loc=loc,
-        ip=ip,
-    )
+TOPK = 16
+CANDIDATE_ROW_SIZE = 2 * TOPK + 1
 
 
 class IndexDecodeScoreShardedKernel:
@@ -74,11 +50,9 @@ class IndexDecodeScoreShardedKernel:
         gQ: cute.Tensor,  # [bs * runtime_decode_query_len, num_heads, head_dim]
         gK_cache: cute.Tensor,  # [num_pages, ROWS, head_dim]
         block_table: cute.Tensor,  # [bs, max_pages]
-        recv_bases: cute.Tensor,  # [tp] int64: every rank's receive buffer
+        scores: cute.Tensor,  # [total_tokens, num_heads, MAX_K_TILES]
         seq_lens: cute.Tensor,  # [bs]
         rank: Int32,  # this rank's token offset inside every block
-        buf: Int32,  # receive slot set of this layer
-        t_max: Int32,  # token capacity of a receive slot
         stream: CUstream,
     ):
         dtype = self.dtype
@@ -128,13 +102,11 @@ class IndexDecodeScoreShardedKernel:
             Q_tma,
             K_tma,
             block_table,
-            recv_bases,
+            scores,
             seq_lens,
             decode_query_len,
             rank,
-            buf,
-            t_max,
-        ).launch(grid=grid, block=block, stream=stream, use_pdl=True)
+        ).launch(grid=grid, block=block, stream=stream)
 
     @cute.kernel
     def kernel(
@@ -142,12 +114,10 @@ class IndexDecodeScoreShardedKernel:
         Q_tma: cpasync.TmaInfo,
         K_tma: cpasync.TmaInfo,
         block_table: cute.Tensor,
-        recv_bases: cute.Tensor,
+        scores: cute.Tensor,
         seq_lens: cute.Tensor,
         decode_query_len,
         rank,
-        buf,
-        t_max,
     ):
         batch_id, split_id, _ = cute.arch.block_idx()
         _, split_k, _ = cute.arch.grid_dim()
@@ -159,7 +129,6 @@ class IndexDecodeScoreShardedKernel:
         BLOCK_Q = NUM_HEADS * MAX_DQL
         PAGES = self.PAGES
         TP = SUPPORTED_TP
-        HPR = NUM_HEADS // TP
         head_dim = self.head_dim
         dtype = self.dtype
         MMA_N = 8
@@ -184,7 +153,7 @@ class IndexDecodeScoreShardedKernel:
             target_profile=(BLOCK_Q, (row_elems, head_dim // row_elems)),
         )
 
-        # Keep each column's four page maxima contiguous for a 16 B store.
+        # Keep each column's four page maxima contiguous.
         EPI_Q = Q_TILES * MMA_N
         epi_buffer = smem.allocate_tensor(
             Float32, cute.make_layout((EPI_Q, PAGES), stride=(PAGES, 1)), 16
@@ -208,9 +177,6 @@ class IndexDecodeScoreShardedKernel:
                 cpasync.prefetch_descriptor(Q_tma.atom)
                 cpasync.prefetch_descriptor(K_tma.atom)
             cute.arch.sync_threads()
-
-            cute.arch.griddepcontrol_wait()
-            cute.arch.griddepcontrol_launch_dependents()
 
             if warp_id == 4:
                 # TMA warp
@@ -391,22 +357,16 @@ class IndexDecodeScoreShardedKernel:
                             epi_buffer[q * MMA_N + lane_id * 2 + 1, warp_id] = rScore[1]
                     cute.arch.barrier(barrier_id=self.BAR_MMA, number_of_threads=128)
 
-                    # Push four page maxima to the head owner; padded pages are -inf.
+                    # Padded pages are -inf.
                     if warp_id == 0 and lane_id < BLOCK_Q:
                         head_id = lane_id // MAX_DQL
                         q_local_pos = lane_id - head_id * MAX_DQL
                         if q_local_pos < decode_query_len:
                             t = batch_id * decode_query_len + q_local_pos
-                            dst = head_id // HPR
-                            slot = (buf * TP + rank) * HPR + head_id % HPR
-                            elem = (slot * t_max + t) * MAX_K_TILES + super_id * PAGES
-                            _store_relaxed_sys_v4_f32(
-                                recv_bases[dst] + Int64(elem) * 4,
-                                epi_buffer[lane_id, 0],
-                                epi_buffer[lane_id, 1],
-                                epi_buffer[lane_id, 2],
-                                epi_buffer[lane_id, 3],
-                            )
+                            for p in cutlass.range_constexpr(PAGES):
+                                scores[t, head_id, super_id * PAGES + p] = epi_buffer[
+                                    lane_id, p
+                                ]
 
                     tma_stage = (tma_stage + 1) % self.num_stages
                     if tma_stage == 0:
@@ -431,7 +391,9 @@ class IndexDecodeScoreShardedKernel:
             dtype, (cute.sym_int(), ROWS, head_dim), divisibility=16
         )
         block_table = make_fake_tensor(Int32, (bs, cute.sym_int()), divisibility=1)
-        recv_bases = make_fake_tensor(Int64, (SUPPORTED_TP,), divisibility=1)
+        scores = make_fake_tensor(
+            Float32, (total_tokens, num_heads, MAX_K_TILES), divisibility=4
+        )
         seq_lens = make_fake_tensor(Int32, (bs,), divisibility=1)
         kernel = IndexDecodeScoreShardedKernel(
             num_heads,
@@ -445,11 +407,9 @@ class IndexDecodeScoreShardedKernel:
             q,
             k_cache,
             block_table,
-            recv_bases,
+            scores,
             seq_lens,
             Int32(0),
-            Int32(0),
-            Int32(1),
             stream,
             options="--enable-tvm-ffi",
         )
@@ -463,17 +423,10 @@ def minimax_m3_index_decode_score_sharded_cutedsl(
     rank: int,
     decode_query_len: int,
     max_decode_query_len: int,
-    recv_bases: torch.Tensor,
-    buf: int,
-    t_max: int,
+    score_out: torch.Tensor,
     split_k: int = DEFAULT_SPLIT_K,
 ) -> None:
-    """Score all index heads over local keys and push maxima to head owners.
-
-    Local K row i holds token i * 4 + rank. Receive buffers have FP32 layout
-    [bufs, tp, heads_per_rank, t_max, MAX_K_TILES]. Writes cover the valid
-    blocks rounded up to four, with -inf for padding.
-    """
+    """Write local maxima for all heads; local row i holds token i * 4 + rank."""
     if idx_q.dtype != torch.float8_e4m3fn or index_kv_shard.dtype != idx_q.dtype:
         raise TypeError("sharded index decode score supports FP8 E4M3 only")
     total_tokens, num_heads, head_dim = idx_q.shape
@@ -483,69 +436,202 @@ def minimax_m3_index_decode_score_sharded_cutedsl(
     assert 1 <= decode_query_len <= max_decode_query_len
     assert num_heads * max_decode_query_len <= 32
     assert 0 <= rank < SUPPORTED_TP and num_heads % SUPPORTED_TP == 0
-    assert total_tokens <= t_max
+    assert score_out.shape == (total_tokens, num_heads, MAX_K_TILES)
+    assert score_out.dtype == torch.float32 and score_out.is_contiguous()
     kernel = IndexDecodeScoreShardedKernel.compile(
         num_heads,
         max_decode_query_len,
         split_k,
         head_dim,
     )
-    kernel(idx_q, index_kv_shard, block_table, recv_bases, seq_lens, rank, buf, t_max)
+    kernel(idx_q, index_kv_shard, block_table, score_out, seq_lens, rank)
 
 
 @triton.jit
-def _index_k_max_reduce_kernel(
+def _index_k_publish_candidates_kernel(
+    scores_ptr,
+    indices_ptr,
+    recv_bases,
+    slot,
+    rank,
+    t_max,
+    err_ptr,
+    score_stride_t,
+    score_stride_h,
+    index_stride_t,
+    index_stride_h,
+    W: tl.constexpr,
+    HPR: tl.constexpr,
+    MAX_TILES: tl.constexpr,
+    SPIN: tl.constexpr,
+):
+    t = tl.program_id(0)
+    h = tl.program_id(1)
+    peer = tl.load(recv_bases + h // HPR).to(tl.pointer_type(tl.int32))
+    row = peer + (((slot * W + rank) * HPR + h % HPR) * t_max + t) * 33
+    ready = row + 32
+    seen = tl.atomic_add(ready, 0, sem="acquire", scope="sys")
+    spins = 0
+    while (seen != 0) & (spins < SPIN):
+        seen = tl.atomic_add(ready, 0, sem="acquire", scope="sys")
+        spins += 1
+    if seen != 0:
+        tl.atomic_add(err_ptr, 1)
+        tl.inline_asm_elementwise(
+            "trap; mov.u32 $0, 0;", "=r", [], dtype=tl.int32, is_pure=False, pack=1
+        )
+    k = tl.arange(0, 16)
+    ids = tl.load(indices_ptr + t * index_stride_t + h * index_stride_h + k)
+    valid = (ids >= 0) & (ids < MAX_TILES)
+    scores = tl.load(
+        scores_ptr + t * score_stride_t + h * score_stride_h + ids,
+        mask=valid,
+        other=-float("inf"),
+    )
+    tl.store(row + k, scores.to(tl.int32, bitcast=True))
+    tl.store(row + 16 + k, tl.where(valid, ids, -1))
+    tl.debug_barrier()
+    tl.atomic_xchg(ready, 1, sem="release", scope="sys")
+
+
+@triton.jit
+def _index_k_merge_candidates_kernel(
     recv_ptr,
+    valid_ptr,
     out_ptr,
     out_stride_t,
     out_stride_h,
-    seq_lens_ptr,
-    decode_query_len,
+    valid_stride,
     err_ptr,
     recv_stride_src,
     recv_stride_h,
     recv_stride_t,
     W: tl.constexpr,
-    HPR: tl.constexpr,
-    CHUNK: tl.constexpr,
+    INIT: tl.constexpr,
+    LOCAL: tl.constexpr,
+    MAX_TILES: tl.constexpr,
     SPIN: tl.constexpr,
 ):
-    th = tl.program_id(0)
-    t = th // HPR
-    hh = th % HPR
-    # The score kernel pushes whole 4-tile super-tiles (-inf past the last
-    # block, which the unified buffer already holds there).
-    seq_len = tl.load(seq_lens_ptr + t // decode_query_len)
-    n_tiles = (seq_len + 511) // 512 * 4
-    start = tl.program_id(1) * CHUNK
-    if start < n_tiles:
-        offs = start + tl.arange(0, CHUNK)
-        mask = offs < n_tiles
-        row = recv_ptr + hh * recv_stride_h + t * recv_stride_t + offs
-        # Poll every source's slot until none holds the sentinel.
-        acc = tl.full([CHUNK], float("-inf"), tl.float32)
-        pending = tl.full([], 1, tl.int32)
-        spins = tl.full([], 0, tl.int32)
-        while (pending > 0) & (spins < SPIN):
-            acc = tl.full([CHUNK], float("-inf"), tl.float32)
-            missing = tl.zeros([CHUNK], dtype=tl.int32)
-            for p in tl.static_range(W):
-                bits = tl.load(
-                    row + p * recv_stride_src, mask=mask, other=0, volatile=True
-                )
-                missing += (bits == -1).to(tl.int32)
-                acc = tl.maximum(acc, bits.to(tl.float32, bitcast=True))
-            pending = tl.sum(missing, axis=0)
-            spins += 1
-        if pending > 0:
-            tl.atomic_add(err_ptr, 1)
-            tl.inline_asm_elementwise(
-                "trap; mov.u32 $0, 0;", "=r", [], dtype=tl.int32, is_pure=False, pack=1
-            )
-        tl.store(out_ptr + t * out_stride_t + hh * out_stride_h + offs, acc, mask=mask)
-        for p in tl.static_range(W):
-            tl.store(
-                row + p * recv_stride_src,
-                tl.full([CHUNK], -1, tl.int32),
-                mask=mask,
-            )
+    t = tl.program_id(0)
+    h = tl.program_id(1)
+    row = recv_ptr + h * recv_stride_h + t * recv_stride_t
+    ready = row + tl.arange(0, W) * recv_stride_src + 32
+    seen = tl.atomic_add(ready, 0, sem="acquire", scope="sys")
+    pending = tl.sum((seen != 1).to(tl.int32), 0)
+    spins = 0
+    while (pending > 0) & (spins < SPIN):
+        seen = tl.atomic_add(ready, 0, sem="acquire", scope="sys")
+        pending = tl.sum((seen != 1).to(tl.int32), 0)
+        spins += 1
+    if pending > 0:
+        tl.atomic_add(err_ptr, 1)
+        tl.inline_asm_elementwise(
+            "trap; mov.u32 $0, 0;", "=r", [], dtype=tl.int32, is_pure=False, pack=1
+        )
+    k = tl.arange(0, W * 16)
+    source = row + k // 16 * recv_stride_src + k % 16
+    ids = tl.load(source + 16)
+    scores = tl.load(source).to(tl.float32, bitcast=True)
+    nvalid = tl.minimum(tl.load(valid_ptr + t * valid_stride), MAX_TILES)
+    valid = (ids >= 0) & (ids < nvalid)
+    scores = tl.where(scores == scores, scores, -float("inf"))
+    equal = (ids[:, None] == ids[None, :]) & valid[:, None] & valid[None, :]
+    scores = tl.max(tl.where(equal, scores[None, :], -float("inf")), 1)
+    first = tl.min(tl.where(equal, k[None, :], W * 16), 1)
+    unique = valid & (k == first)
+    forced = (ids < INIT) | (ids >= tl.maximum(0, nvalid - LOCAL))
+    scores = tl.where(forced, float("inf"), scores)
+    # Float ordering followed by inverse ID gives a stable cutoff tie break.
+    bits = tl.where(scores == 0, 0.0, scores).to(tl.uint32, bitcast=True)
+    ordered = tl.where((bits & 0x80000000) != 0, ~bits, bits ^ 0x80000000)
+    keys = (ordered.to(tl.uint64) << 32) | (0xFFFFFFFF - ids.to(tl.uint32)).to(
+        tl.uint64
+    )
+    keys = tl.where(unique, keys, 0)
+    keys, ids = tl.sort_key_value(keys, ids, descending=True)
+    positions = tl.arange(0, 16)
+    selected = tl.gather(ids, positions, 0)
+    selected = tl.where(tl.gather(keys, positions, 0) != 0, selected, 0x7FFFFFFF)
+    selected = tl.sort(selected, descending=False)
+    tl.store(
+        out_ptr + t * out_stride_t + h * out_stride_h + positions,
+        tl.where(selected == 0x7FFFFFFF, -1, selected),
+    )
+    tl.debug_barrier()
+    tl.atomic_xchg(ready, 0, sem="release", scope="sys")
+
+
+def minimax_m3_index_publish_candidates(
+    scores: torch.Tensor,
+    local_indices: torch.Tensor,
+    recv_bases: torch.Tensor,
+    slot: int,
+    rank: int,
+    t_max: int,
+    errors: torch.Tensor,
+    *,
+    world_size: int,
+    heads_per_rank: int,
+    spin_limit: int = 1 << 26,
+) -> None:
+    """Publish local Top16 into score/ID/ready rows on each head's owner."""
+    tokens, heads, topk = local_indices.shape
+    assert topk == TOPK and tokens <= t_max
+    assert heads == world_size * heads_per_rank
+    assert scores.shape == (tokens, heads, MAX_K_TILES)
+    assert scores.stride(-1) == local_indices.stride(-1) == 1
+    _index_k_publish_candidates_kernel[(tokens, heads)](
+        scores,
+        local_indices,
+        recv_bases,
+        slot,
+        rank,
+        t_max,
+        errors,
+        scores.stride(0),
+        scores.stride(1),
+        local_indices.stride(0),
+        local_indices.stride(1),
+        W=world_size,
+        HPR=heads_per_rank,
+        MAX_TILES=MAX_K_TILES,
+        SPIN=spin_limit,
+        num_warps=4,
+    )
+
+
+def minimax_m3_index_merge_candidates(
+    recv_slot: torch.Tensor,
+    num_valid_pages: torch.Tensor,
+    output: torch.Tensor,
+    errors: torch.Tensor,
+    *,
+    init_blocks: int,
+    local_blocks: int,
+    spin_limit: int = 1 << 26,
+) -> None:
+    """Merge duplicate blocks by max, force init/local blocks, and sort Top16 IDs."""
+    world, heads, capacity, row_size = recv_slot.shape
+    tokens, out_heads, topk = output.shape
+    assert world == SUPPORTED_TP and out_heads == heads
+    assert topk == TOPK and row_size == CANDIDATE_ROW_SIZE and tokens <= capacity
+    assert recv_slot.stride(-1) == output.stride(-1) == 1
+    assert num_valid_pages.shape == (tokens,)
+    _index_k_merge_candidates_kernel[(tokens, heads)](
+        recv_slot,
+        num_valid_pages,
+        output,
+        output.stride(0),
+        output.stride(1),
+        num_valid_pages.stride(0),
+        errors,
+        recv_slot.stride(0),
+        recv_slot.stride(1),
+        recv_slot.stride(2),
+        W=world,
+        INIT=init_blocks,
+        LOCAL=local_blocks,
+        MAX_TILES=MAX_K_TILES,
+        SPIN=spin_limit,
+        num_warps=4,
+    )

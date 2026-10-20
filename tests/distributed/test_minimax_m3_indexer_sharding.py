@@ -177,19 +177,23 @@ def _check_indexer_forwards(config, device, rank, comm):
                 rtol=0,
                 atol=0,
             )
-        torch.testing.assert_close(
-            metadata[1].unified_scores,
-            metadata[0].unified_scores,
-            rtol=0,
-            atol=0,
-        )
+        if metadata[1].prefill_msa is not None:
+            nd = metadata[1].num_decode_tokens
+            torch.testing.assert_close(
+                metadata[1].unified_scores[nd:],
+                metadata[0].unified_scores[nd:],
+                rtol=0,
+                atol=0,
+            )
         assert comm.errors.item() == 0
+        assert torch.count_nonzero(comm.recv[..., 32]).item() == 0
 
     batches = [
         BatchSpec(seq_lens=[129, 2305], query_lens=[1, 1]),
         BatchSpec(seq_lens=[128, 2306], query_lens=[4, 4]),
         BatchSpec(seq_lens=[128, 2307], query_lens=[8, 8]),
         BatchSpec(seq_lens=[2305, 2561, 2624, 2720], query_lens=[1, 1, 64, 96]),
+        BatchSpec(seq_lens=[129, 2305], query_lens=[1, 1]),
     ]
     for batch in batches:
         common = create_common_attn_metadata(
@@ -247,8 +251,10 @@ def _check_indexer_forwards(config, device, rank, comm):
             with torch.cuda.graph(graph):
                 run(True, metadata, queries)
             for _ in range(3):
-                for query in queries:
+                for query, cache, impl in zip(queries, caches, layers[1]):
                     query.copy_((-query.float()).to(query.dtype))
+                    cache.view(torch.uint8).copy_(cache.view(torch.uint8).roll(1, 0))
+                    impl.index_cache.kv_cache.copy_(cache[:, rank::4])
                 graph.replay()
             check(metadata, queries, num_tokens)
         else:
