@@ -17,7 +17,7 @@ else()
   FetchContent_Declare(
     fmha_sm100
     GIT_REPOSITORY https://github.com/wolfcomos/MSA.git
-    GIT_TAG 12d1cb467942c6a7710edb40f1803d7a5b76c7bb
+    GIT_TAG 0bddcbb2e06a1a9574d75ff601058d7516728d88
     GIT_PROGRESS TRUE
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
