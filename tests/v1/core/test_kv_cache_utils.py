@@ -154,17 +154,17 @@ def test_minimax_compound_pages_share_prefix_lifetime(tp, page_size):
         generate_scheduler_kv_cache_config([config]),
         max_model_len=4 * page_size,
         scheduler_block_size=page_size,
-        hash_block_size=128,
+        hash_block_size=page_size,
         enable_caching=True,
     )
     request = make_request(
-        "compound", [1] * (2 * page_size + 1), block_size=128, hash_fn=sha256
+        "compound", [1] * (2 * page_size + 1), block_size=page_size, hash_fn=sha256
     )
     blocks = manager.allocate_slots(request, 2 * page_size + 1)
     assert blocks is not None and len(blocks.blocks[0]) == 3
     manager.cache_blocks(request, 2 * page_size)
     cached_request = make_request(
-        "compound-hit", [1] * (2 * page_size + 1), block_size=128, hash_fn=sha256
+        "compound-hit", [1] * (2 * page_size + 1), block_size=page_size, hash_fn=sha256
     )
     cached, tokens, _ = manager.get_computed_blocks(cached_request)
     assert tokens == 2 * page_size

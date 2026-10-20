@@ -414,12 +414,15 @@ def test_compound_page_cpu_offload_round_trip(tp, page_size):
     bound.index.view(torch.uint8).fill_(71)
     expected = raw[1].clone()
     worker = _make_worker(config, cpu_capacity_bytes=size)
-    worker.register_kv_caches(caches)
-    assert worker.gpu_kv_caches is not None and worker.cpu_kv_caches is not None
-    assert len(worker.gpu_kv_caches) == 1
-    assert next(iter(worker.gpu_kv_caches.values())).shape == (4, spec.page_size_bytes)
-    assert worker._backend is not None
     try:
+        worker.register_kv_caches(caches)
+        assert worker.gpu_kv_caches is not None and worker.cpu_kv_caches is not None
+        assert len(worker.gpu_kv_caches) == 1
+        assert next(iter(worker.gpu_kv_caches.values())).shape == (
+            4,
+            spec.page_size_bytes,
+        )
+        assert worker._backend is not None
         for is_store, src, dst in ((True, 1, 0), (False, 0, 1)):
             if not is_store:
                 raw[1].zero_()
@@ -438,7 +441,13 @@ def test_compound_page_cpu_offload_round_trip(tp, page_size):
         assert torch.all(bound.main[1] == 29)
         assert torch.all(bound.index[1].view(torch.uint8) == 71)
     finally:
-        worker._backend.shutdown()
+        if worker._backend is not None:
+            worker._backend.shutdown()
+            torch.accelerator.synchronize()
+        for tensor in (worker.cpu_kv_caches or {}).values():
+            if tensor.is_pinned():
+                err = torch.cuda.cudart().cudaHostUnregister(tensor.data_ptr())
+                assert err.value == 0, f"cudaHostUnregister failed: {err}"
 
 
 @pytest.mark.parametrize("num_layers", [1, 2])
