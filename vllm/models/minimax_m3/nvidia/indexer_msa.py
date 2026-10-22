@@ -47,6 +47,7 @@ from vllm.models.minimax_m3.common.indexer import (
 )
 from vllm.models.minimax_m3.common.ops.index_topk import (
     minimax_m3_index_decode_score,
+    minimax_m3_index_score,
 )
 from vllm.platforms import current_platform
 from vllm.v1.attention.backend import (
@@ -77,6 +78,8 @@ SUPPORTED_TP = (2, 4)
 # Receive slot sets the layers rotate over.
 NUM_SLOT_SETS = 3
 TOPK = 16
+PREFILL_CHUNK_SIZE = 1024
+PREFILL_SCORE_BYTES = 32 << 20
 SPIN_LIMIT = 1 << 26
 # Speculative methods whose drafter does not reuse the target's sparse layers.
 _SPEC_METHODS = (None, "eagle", "eagle3", "ngram", "suffix", "draft_model")
@@ -96,16 +99,30 @@ class MiniMaxM3IndexerMSABackend(MiniMaxM3IndexerBackend):
 
 
 @dataclass
-class MiniMaxM3IndexerMSAPrefillMetadata:
-    """fmha score plan + Triton top-k inputs for the prefill side (eager)."""
+class MiniMaxM3IndexerMSAPrefillChunk:
+    start: int
+    end: int
+    max_seq_len: int
+    block_table: torch.Tensor
+    cu_seqlens_q: torch.Tensor
+    seq_lens: torch.Tensor
+    prefix_lens: torch.Tensor
 
-    plan: dict  # fmha_sm100 PlanInfo
+
+@dataclass
+class MiniMaxM3IndexerMSAPrefillMetadata:
+    """MSA gather plan or bounded local-score chunks for eager prefill."""
+
+    plan: dict | None  # fmha_sm100 PlanInfo
     cu_seqlens_q: torch.Tensor  # [num_prefills + 1] int32, rebased to 0
     prefix_lens: torch.Tensor  # [num_prefills] int32, context tokens
     max_query_len: int
-    page_table: torch.Tensor  # flat physical page indices for the prefill side
+    page_table: torch.Tensor | None  # flat physical pages for gathered prefill
     # Physical pages to gather; page_table indexes the gathered result.
     gather_pages: torch.Tensor | None = None
+    local_chunks: list[MiniMaxM3IndexerMSAPrefillChunk] | None = None
+    local_scores: torch.Tensor | None = None
+    candidate_buffers: torch.Tensor | None = None
 
 
 @dataclass
@@ -155,6 +172,10 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
         content = kv_cache_spec.state_content_bytes
         full = kv_cache_spec.head_size * kv_cache_spec.dtype.itemsize
         self.index_k_tp = 1 if content is None else full // content
+        self.prefill_local_score = (
+            self.index_k_tp > 1
+            and vllm_config.attention_config.indexer_prefill_cp == "local_score"
+        )
         self.index_k_rank = 0
         self.index_k_slots: torch.Tensor | None = None
         if self.index_k_tp > 1:
@@ -176,13 +197,15 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
         # kernel's shape is frozen at capture. Filled with -inf per forward in
         # build(); the valid/padding partition is a per-forward constant, so
         # every layer overwrites the same valid tiles before its own top-k.
-        self.unified_scores_buffer = torch.empty(
-            vllm_config.scheduler_config.max_num_batched_tokens,
-            self.num_index_heads,
-            MAX_K_TILES,
-            dtype=torch.float32,
-            device=device,
-        )
+        self.unified_scores_buffer: torch.Tensor | None = None
+        if not self.prefill_local_score:
+            self.unified_scores_buffer = torch.empty(
+                vllm_config.scheduler_config.max_num_batched_tokens,
+                self.num_index_heads,
+                MAX_K_TILES,
+                dtype=torch.float32,
+                device=device,
+            )
 
     def build(
         self,
@@ -231,8 +254,10 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
         # reset to the -inf sentinel once here and shared by every layer (the
         # tile dim is the capture-time constant MAX_K_TILES).
         max_k_tiles = MAX_K_TILES
-        unified_scores = self.unified_scores_buffer[:num_tokens]
-        unified_scores.fill_(_SCORE_SENTINEL)
+        unified_scores = None
+        if self.unified_scores_buffer is not None:
+            unified_scores = self.unified_scores_buffer[:num_tokens]
+            unified_scores.fill_(_SCORE_SENTINEL)
 
         decode: MiniMaxM3IndexerDecodeMetadata | None = None
         if num_decodes > 0:
@@ -264,30 +289,85 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
             nvp = (kv_lens_cpu + PAGE_SIZE - 1) // PAGE_SIZE
             side_qo = qo_lens_cpu[lo:hi]
             side_kv = kv_lens_cpu[lo:hi]
-            plan = _fmha_sm100_plan(
-                side_qo,
-                side_kv,
-                self.num_index_heads,
-                num_kv_heads=1,
-                qo_offset=side_kv - side_qo,  # bottom-right causal
-                page_size=PAGE_SIZE,
-                output_maxscore=True,
-                causal=True,
-                num_kv_splits=1,
-            )
-            # Force the plan's tile dim to the unified buffer's so prefill writes
-            # its max_score straight into unified[:, :, nd:] (the stride-aware
-            # binding shape-matches the tile dim exactly). max_k_tiles >= the
-            # plan's natural value, so the extra tiles are simply never written.
-            plan["max_k_tiles"] = max_k_tiles
-            cols = torch.arange(block_table.shape[1], device=block_table.device)
-            valid = cols[None, :] < nvp[lo:hi].to(block_table.device)[:, None]
-            page_table = block_table[lo:hi][valid].to(torch.int32)
+            plan = None
+            if not self.prefill_local_score:
+                plan = _fmha_sm100_plan(
+                    side_qo,
+                    side_kv,
+                    self.num_index_heads,
+                    num_kv_heads=1,
+                    qo_offset=side_kv - side_qo,  # bottom-right causal
+                    page_size=PAGE_SIZE,
+                    output_maxscore=True,
+                    causal=True,
+                    num_kv_splits=1,
+                )
+                # Force the plan's tile dim to the unified buffer's so prefill writes
+                # its max_score straight into unified[:, :, nd:] (the stride-aware
+                # binding shape-matches the tile dim exactly). max_k_tiles >= the
+                # plan's natural value, so the extra tiles are simply never written.
+                plan["max_k_tiles"] = max_k_tiles
+            page_table = None
             gather_pages = None
-            if self.index_k_tp > 1:
-                gather_pages = page_table.to(torch.int64)
-                page_table = torch.arange(
-                    page_table.numel(), dtype=torch.int32, device=page_table.device
+            if not self.prefill_local_score:
+                cols = torch.arange(block_table.shape[1], device=block_table.device)
+                valid = cols[None, :] < nvp[lo:hi].to(block_table.device)[:, None]
+                page_table = block_table[lo:hi][valid].to(torch.int32)
+                if self.index_k_tp > 1:
+                    gather_pages = page_table.to(torch.int64)
+                    page_table = torch.arange(
+                        page_table.numel(), dtype=torch.int32, device=page_table.device
+                    )
+            local_chunks = None
+            local_scores = None
+            candidate_buffers = None
+            if self.prefill_local_score:
+                local_chunks = []
+                heads = self.num_index_heads * self.index_k_tp
+                blocks = (int(side_kv.max()) + PAGE_SIZE - 1) // PAGE_SIZE
+                score_cols = (blocks + 15) // 16 * 16
+                chunk_size = min(
+                    PREFILL_CHUNK_SIZE,
+                    max(64, PREFILL_SCORE_BYTES // (heads * score_cols * 4) // 64 * 64),
+                )
+                start = 0
+                for request, query_len in enumerate(side_qo.tolist()):
+                    prefix_len = int(side_kv[request]) - query_len
+                    for offset in range(0, query_len, chunk_size):
+                        size = min(chunk_size, query_len - offset)
+                        local_chunks.append(
+                            MiniMaxM3IndexerMSAPrefillChunk(
+                                start=start + offset,
+                                end=start + offset + size,
+                                max_seq_len=prefix_len + offset + size,
+                                block_table=block_table[
+                                    lo + request : lo + request + 1
+                                ],
+                                cu_seqlens_q=torch.tensor(
+                                    [0, size], dtype=torch.int32, device=seq_lens.device
+                                ),
+                                seq_lens=seq_lens[lo + request : lo + request + 1],
+                                prefix_lens=context_lens[
+                                    lo + request : lo + request + 1
+                                ]
+                                + offset,
+                            )
+                        )
+                    start += query_len
+                local_scores = torch.empty(
+                    min(chunk_size, int(side_qo.max())),
+                    heads,
+                    score_cols,
+                    dtype=torch.float32,
+                    device=seq_lens.device,
+                )
+                candidate_buffers = torch.empty(
+                    2,
+                    heads,
+                    num_prefill_tokens,
+                    2 * TOPK + 1,
+                    dtype=torch.int32,
+                    device=seq_lens.device,
                 )
             prefill = MiniMaxM3IndexerMSAPrefillMetadata(
                 plan=plan,
@@ -298,6 +378,9 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
                 max_query_len=int(side_qo.max()),
                 page_table=page_table,
                 gather_pages=gather_pages,
+                local_chunks=local_chunks,
+                local_scores=local_scores,
+                candidate_buffers=candidate_buffers,
             )
 
         return MiniMaxM3IndexerMSAMetadata(
@@ -371,7 +454,6 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
         # shared by all layers) and resets it to the sentinel each forward, so
         # the top-k never picks an unwritten tile.
         unified_scores = md.unified_scores
-        assert unified_scores is not None
         num_valid_pages = md.topk_num_valid_pages
         assert num_valid_pages is not None
         from vllm.third_party.fmha_sm100.api import sparse_topk_select
@@ -436,6 +518,7 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
                     minimax_m3_index_decode_score_cutedsl,
                 )
 
+                assert unified_scores is not None
                 decode_score = (
                     minimax_m3_index_decode_score_cutedsl
                     if self.num_index_heads * d.max_decode_query_len <= 32
@@ -455,9 +538,25 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
                     score_out=unified_scores[:nd].transpose(0, 1),
                 )
 
-        if md.prefill_msa is not None:
+        local_prefill = (
+            md.prefill_msa is not None and md.prefill_msa.local_chunks is not None
+        )
+        if local_prefill:
+            assert md.prefill_msa is not None and self.index_k_comm is not None
+            prefill_local_score(
+                index_q[nd:],
+                kv,
+                md.prefill_msa,
+                self.index_k_comm,
+                num_valid_pages[nd:],
+                buf[nd:num_tokens],
+                self.init_blocks,
+                self.local_blocks,
+            )
+        elif md.prefill_msa is not None:
             from vllm.third_party.fmha_sm100.api import _fmha_sm100
 
+            assert unified_scores is not None
             p = md.prefill_msa
             prefill_q = index_q[nd:]
             if p.gather_pages is not None:
@@ -486,7 +585,8 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
             )
 
         start = nd if sharded else 0
-        if start < num_tokens:
+        if start < num_tokens and not local_prefill:
+            assert unified_scores is not None
             sparse_topk_select(
                 unified_scores[start:],
                 self.topk_blocks,
@@ -499,6 +599,71 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
 
         # The attend reads ``buf`` directly; this return is vestigial.
         return None, None
+
+
+def prefill_local_score(
+    index_q: torch.Tensor,
+    kv: torch.Tensor,
+    metadata: MiniMaxM3IndexerMSAPrefillMetadata,
+    comm: "IndexKShardComm",
+    num_valid_pages: torch.Tensor,
+    output: torch.Tensor,
+    init_blocks: int,
+    local_blocks: int,
+) -> None:
+    """Score bounded query chunks, then exchange their candidates once per layer."""
+    from vllm.models.minimax_m3.nvidia.ops.index_decode_score_sharded import (
+        minimax_m3_index_merge_candidates,
+        minimax_m3_index_pack_candidates,
+    )
+    from vllm.third_party.fmha_sm100.api import sparse_topk_select
+
+    assert metadata.local_chunks is not None and metadata.local_scores is not None
+    assert metadata.candidate_buffers is not None
+    total_tokens, heads, _ = index_q.shape
+    send, received = metadata.candidate_buffers.unbind(0)
+    for chunk in metadata.local_chunks:
+        query = index_q[chunk.start : chunk.end]
+        tokens = query.shape[0]
+        scores = metadata.local_scores[:tokens]
+        minimax_m3_index_score(
+            query,
+            kv,
+            chunk.block_table,
+            chunk.cu_seqlens_q,
+            chunk.seq_lens,
+            chunk.prefix_lens,
+            tokens,
+            chunk.max_seq_len,
+            heads,
+            rank=comm.rank,
+            tp=comm.world,
+            score_out=scores.transpose(0, 1),
+        )
+        chunk_send = send[:, chunk.start : chunk.end]
+        candidates = chunk_send[..., TOPK : 2 * TOPK].transpose(0, 1)
+        valid_pages = num_valid_pages[chunk.start : chunk.end]
+        sparse_topk_select(
+            scores,
+            TOPK,
+            num_valid_pages=valid_pages,
+            force_begin_blocks=init_blocks,
+            force_end_blocks=local_blocks,
+            output=candidates,
+            max_score_layout="THK",
+        )
+        minimax_m3_index_pack_candidates(scores, chunk_send)
+    send = send.view(comm.world, comm.hpr, total_tokens, 2 * TOPK + 1)
+    received = received.view_as(send)
+    torch.distributed.all_to_all_single(received, send, group=comm.group.device_group)
+    minimax_m3_index_merge_candidates(
+        received,
+        num_valid_pages,
+        output,
+        comm.errors,
+        init_blocks=init_blocks,
+        local_blocks=local_blocks,
+    )
 
 
 def _max_decode_query_len(vllm_config: VllmConfig) -> int:

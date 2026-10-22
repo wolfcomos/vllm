@@ -43,7 +43,7 @@ def _indexer_sharding(monkeypatch, tp_size, pp_size, rank, distributed_init_port
             block_size=128,
             max_model_len=4096,
             max_num_seqs=4,
-            max_num_batched_tokens=256,
+            max_num_batched_tokens=1536,
             hf_config_override={
                 "sparse_attention_config": {
                     "sparse_num_index_heads": 4,
@@ -148,21 +148,30 @@ def _check_indexer_forwards(config, device, rank, comm):
                     indexer_kv_dtype="fp8",
                     index_k_shard=world if sharded else 1,
                     topk_indices_buffer=torch.empty(
-                        (256, local_heads, 16), dtype=torch.int32, device=device
+                        (1536, local_heads, 16), dtype=torch.int32, device=device
                     ),
                 )
                 for layer in range(5)
             ]
         )
-    builders = [
-        msa.MiniMaxM3IndexerMSAMetadataBuilder(
-            impls[0].index_cache.get_kv_cache_spec(config),
-            [impl.index_cache.prefix for impl in impls],
-            config,
-            device,
-        )
-        for impls in layers
-    ]
+    builders = []
+    for impls, prefill_mode in (
+        (layers[0], "gather"),
+        (layers[1], "gather"),
+        (layers[1], "local_score"),
+    ):
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(config.attention_config, "indexer_prefill_cp", prefill_mode)
+            builders.append(
+                msa.MiniMaxM3IndexerMSAMetadataBuilder(
+                    impls[0].index_cache.get_kv_cache_spec(config),
+                    [impl.index_cache.prefix for impl in impls],
+                    config,
+                    device,
+                )
+            )
+    assert all(builder.unified_scores_buffer is not None for builder in builders[:2])
+    assert builders[2].unified_scores_buffer is None
 
     def run(sharded, metadata, queries):
         impls = layers[sharded]
@@ -177,7 +186,7 @@ def _check_indexer_forwards(config, device, rank, comm):
                     ].contiguous()
                 )
 
-    def check(metadata, queries, num_tokens):
+    def check_local(metadata, queries, num_tokens):
         run(False, metadata, queries)
         for reference, sharded in zip(*layers):
             torch.testing.assert_close(
@@ -186,7 +195,10 @@ def _check_indexer_forwards(config, device, rank, comm):
                 rtol=0,
                 atol=0,
             )
-        if metadata[1].prefill_msa is not None:
+        if (
+            metadata[1].prefill_msa is not None
+            and metadata[1].prefill_msa.local_chunks is None
+        ):
             nd = metadata[1].num_decode_tokens
             torch.testing.assert_close(
                 metadata[1].unified_scores[nd:],
@@ -197,11 +209,35 @@ def _check_indexer_forwards(config, device, rank, comm):
         assert comm.errors.item() == 0
         assert torch.count_nonzero(comm.recv[..., 32]).item() == 0
 
+    def check(metadata, queries, num_tokens):
+        error = None
+        try:
+            check_local(metadata, queries, num_tokens)
+        except AssertionError as failure:
+            error = failure
+        # No rank starts publishing the next phase before every snapshot completes.
+        ok = torch.tensor([int(error is None)], dtype=torch.int32, device="cpu")
+        torch.distributed.all_reduce(
+            ok, op=torch.distributed.ReduceOp.MIN, group=comm.group.cpu_group
+        )
+        if not ok.item():
+            raise AssertionError(
+                f"Indexer validation failed on a TP rank: {error}"
+            ) from error
+
+    exchanges = []
+    all_to_all = torch.distributed.all_to_all_single
+
+    def exchange(received, send, **kwargs):
+        exchanges.append(tuple(send.shape))
+        return all_to_all(received, send, **kwargs)
+
     batches = [
         BatchSpec(seq_lens=[129, 2305], query_lens=[1, 1]),
         BatchSpec(seq_lens=[128, 2306], query_lens=[4, 4]),
         BatchSpec(seq_lens=[128, 2307], query_lens=[8, 8]),
-        BatchSpec(seq_lens=[2305, 2561, 2624, 2720], query_lens=[1, 1, 64, 96]),
+        BatchSpec(seq_lens=[2305, 2561, 2691, 2720], query_lens=[1, 1, 1027, 127]),
+        BatchSpec(seq_lens=[2691], query_lens=[1027]),
         BatchSpec(seq_lens=[129, 2305], query_lens=[1, 1]),
     ]
     for batch in batches:
@@ -212,7 +248,7 @@ def _check_indexer_forwards(config, device, rank, comm):
         common.block_table_tensor = torch.randperm(num_pages, device=device)[
             common.block_table_tensor.long()
         ].int()
-        if batch.query_lens[-1] > 8:
+        if len(batch.query_lens) > 1 and batch.query_lens[-1] > 8:
             # Shared prefix pages must retain each request's logical order.
             common.block_table_tensor[-1, :8] = common.block_table_tensor[-2, :8]
         common.positions = torch.cat(
@@ -246,8 +282,10 @@ def _check_indexer_forwards(config, device, rank, comm):
             query[:, :, :7] = (1 << bits) * (
                 1 - 2 * (((head_codes ^ (layer * 7)) >> bits) & 1)
             )
+            query[msa.PREFILL_CHUNK_SIZE :] *= -1
             queries.append(query.to(torch.float8_e4m3fn))
         metadata = [builder.build(0, common) for builder in builders]
+        assert metadata[2].unified_scores is None
 
         # Compile before capture. No host assertion/barrier between layers or
         # repeated steps: those would hide receive-slot reuse races.
@@ -257,17 +295,36 @@ def _check_indexer_forwards(config, device, rank, comm):
         check(metadata, queries, num_tokens)
 
         if metadata[1].prefill_msa is None:
-            graph = torch.cuda.CUDAGraph()
-            with torch.cuda.graph(graph):
+            for decode_metadata in (metadata[1], metadata[2]):
+                metadata[1] = decode_metadata
                 run(True, metadata, queries)
-            for _ in range(3):
-                for query, cache, impl in zip(queries, caches, layers[1]):
-                    query.copy_((-query.float()).to(query.dtype))
-                    cache.view(torch.uint8).copy_(cache.view(torch.uint8).roll(1, 0))
-                    impl.index_cache.kv_cache.copy_(cache[:, rank::world])
-                graph.replay()
-            check(metadata, queries, num_tokens)
+                graph = torch.cuda.CUDAGraph()
+                with torch.cuda.graph(graph):
+                    run(True, metadata, queries)
+                for _ in range(3):
+                    for query, cache, impl in zip(queries, caches, layers[1]):
+                        query.copy_((-query.float()).to(query.dtype))
+                        cache.view(torch.uint8).copy_(
+                            cache.view(torch.uint8).roll(1, 0)
+                        )
+                        impl.index_cache.kv_cache.copy_(cache[:, rank::world])
+                    graph.replay()
+                check(metadata, queries, num_tokens)
         else:
+            metadata[1] = metadata[2]
+            scratch = metadata[1].prefill_msa.local_scores
+            assert scratch.shape[0] <= msa.PREFILL_CHUNK_SIZE
+            assert scratch.numel() * scratch.element_size() <= msa.PREFILL_SCORE_BYTES
+            # Reuse scratch across layers and steps.
+            exchanges.clear()
+            with pytest.MonkeyPatch.context() as patch:
+                patch.setattr(torch.distributed, "all_to_all_single", exchange)
+                for _ in range(3):
+                    run(True, metadata, queries)
+            assert exchanges == [
+                (world, local_heads, metadata[1].num_prefill_tokens, 33)
+            ] * (3 * len(layers[1]))
+            check(metadata, queries, num_tokens)
             pages = torch.tensor([num_pages - 1, 0, 7, 0], device=device)
             gathered = [
                 msa.gather_prefill_pages(impl.index_cache.kv_cache, pages, comm)
@@ -285,7 +342,7 @@ def _check_indexer_forwards(config, device, rank, comm):
 )
 @pytest.mark.parametrize("tp_size", [2, 4])
 def test_msa_indexer_tp_matches_replicated(monkeypatch, tp_size):
-    """Real TP score/TopK, prefill gather, and mailbox reuse under graph replay."""
+    """Real TP score/TopK, both prefill paths, and decode graph replay."""
     if torch.accelerator.device_count() < tp_size:
         pytest.skip(f"Requires {tp_size} GPUs")
     if not all(
