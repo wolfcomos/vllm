@@ -79,7 +79,8 @@ SUPPORTED_TP = (2, 4)
 # Receive slot sets the layers rotate over.
 NUM_SLOT_SETS = 3
 TOPK = 16
-PREFILL_CHUNK_SIZE = 256
+PREFILL_CHUNK_SIZE = 1024
+PREFILL_SCORE_BYTES = 32 << 20
 SPIN_LIMIT = 1 << 26
 # Speculative methods whose drafter does not reuse the target's sparse layers.
 _SPEC_METHODS = (None, "eagle", "eagle3", "ngram", "suffix", "draft_model")
@@ -106,6 +107,7 @@ class MiniMaxM3IndexerMSABackend(MiniMaxM3IndexerBackend):
 class MiniMaxM3IndexerMSAPrefillChunk:
     start: int
     end: int
+    max_seq_len: int
     block_table: torch.Tensor
     cu_seqlens_q: torch.Tensor
     seq_lens: torch.Tensor
@@ -355,14 +357,23 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
             candidate_buffers = None
             if self.prefill_local_score:
                 local_chunks = []
+                heads = self.num_index_heads * self.index_k_tp
+                blocks = (int(side_kv.max()) + PAGE_SIZE - 1) // PAGE_SIZE
+                score_cols = (blocks + 15) // 16 * 16
+                chunk_size = min(
+                    PREFILL_CHUNK_SIZE,
+                    max(64, PREFILL_SCORE_BYTES // (heads * score_cols * 4) // 64 * 64),
+                )
                 start = 0
                 for request, query_len in enumerate(side_qo.tolist()):
-                    for offset in range(0, query_len, PREFILL_CHUNK_SIZE):
-                        size = min(PREFILL_CHUNK_SIZE, query_len - offset)
+                    prefix_len = int(side_kv[request]) - query_len
+                    for offset in range(0, query_len, chunk_size):
+                        size = min(chunk_size, query_len - offset)
                         local_chunks.append(
                             MiniMaxM3IndexerMSAPrefillChunk(
                                 start=start + offset,
                                 end=start + offset + size,
+                                max_seq_len=prefix_len + offset + size,
                                 block_table=block_table[
                                     lo + request : lo + request + 1
                                 ],
@@ -377,17 +388,16 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
                             )
                         )
                     start += query_len
-                blocks = (int(side_kv.max()) + PAGE_SIZE - 1) // PAGE_SIZE
                 local_scores = torch.empty(
-                    min(PREFILL_CHUNK_SIZE, int(side_qo.max())),
-                    self.num_index_heads * self.index_k_tp,
-                    (blocks + 15) // 16 * 16,
+                    min(chunk_size, int(side_qo.max())),
+                    heads,
+                    score_cols,
                     dtype=torch.float32,
                     device=seq_lens.device,
                 )
                 candidate_buffers = torch.empty(
                     2,
-                    self.num_index_heads * self.index_k_tp,
+                    heads,
                     num_prefill_tokens,
                     2 * TOPK + 1,
                     dtype=torch.int32,
@@ -643,6 +653,7 @@ def prefill_local_score(
     """Score bounded query chunks, then exchange their candidates once per layer."""
     from vllm.models.minimax_m3.nvidia.ops.index_decode_score_sharded import (
         minimax_m3_index_merge_candidates,
+        minimax_m3_index_pack_candidates,
     )
     from vllm.third_party.fmha_sm100.api import sparse_topk_select
 
@@ -663,16 +674,15 @@ def prefill_local_score(
             chunk.seq_lens,
             chunk.prefix_lens,
             tokens,
-            scores.shape[-1] * PAGE_SIZE,
+            chunk.max_seq_len,
             heads,
             rank=comm.rank,
             tp=comm.world,
             page_size=kv.shape[1] * comm.world,
             score_out=scores.transpose(0, 1),
         )
-        candidates = torch.empty(
-            (tokens, heads, TOPK), dtype=torch.int32, device=query.device
-        )
+        chunk_send = send[:, chunk.start : chunk.end]
+        candidates = chunk_send[..., TOPK : 2 * TOPK].transpose(0, 1)
         valid_pages = num_valid_pages[chunk.start : chunk.end]
         sparse_topk_select(
             scores,
@@ -683,12 +693,7 @@ def prefill_local_score(
             output=candidates,
             max_score_layout="THK",
         )
-        values = scores.gather(-1, candidates.clamp_min(0).long())
-        values.masked_fill_(candidates < 0, _SCORE_SENTINEL)
-        chunk_send = send[:, chunk.start : chunk.end]
-        chunk_send[..., :TOPK].copy_(values.transpose(0, 1).view(torch.int32))
-        chunk_send[..., TOPK : 2 * TOPK].copy_(candidates.transpose(0, 1))
-    send[..., -1].fill_(1)
+        minimax_m3_index_pack_candidates(scores, chunk_send)
     send = send.view(comm.world, comm.hpr, total_tokens, 2 * TOPK + 1)
     received = received.view_as(send)
     torch.distributed.all_to_all_single(received, send, group=comm.group.device_group)
