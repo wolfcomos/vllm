@@ -37,6 +37,7 @@ class IndexDecodeScoreShardedKernel:
         split_k: int,
         head_dim: int = 128,
         world_size: int = 4,
+        page_size: int = 128,
     ):
         self.dtype = Float8E4M3FN
         self.num_heads = num_heads
@@ -44,6 +45,7 @@ class IndexDecodeScoreShardedKernel:
         self.split_k = split_k
         self.head_dim = head_dim
         self.world_size = world_size
+        self.page_size = page_size
 
     @cute.jit
     def __call__(
@@ -62,7 +64,7 @@ class IndexDecodeScoreShardedKernel:
         num_stages = self.num_stages
         MAX_DQL = self.max_decode_query_len
         BLOCK_Q = num_heads * MAX_DQL
-        ROWS = BLOCK // self.world_size
+        ROWS = self.page_size // self.world_size
         assert BLOCK_Q <= 32
         assert head_dim * dtype.width == 128 * 8  # one 128 B row per token
 
@@ -131,7 +133,7 @@ class IndexDecodeScoreShardedKernel:
         BLOCK_Q = NUM_HEADS * MAX_DQL
         PAGES = self.PAGES
         TP = self.world_size
-        ROWS = BLOCK // TP
+        ROWS = self.page_size // TP
         head_dim = self.head_dim
         dtype = self.dtype
         MMA_N = 8
@@ -166,7 +168,7 @@ class IndexDecodeScoreShardedKernel:
         tma_empty_mbar = smem.allocate_array(Int64, num_stages)
 
         seqlen = seq_lens[batch_id]
-        num_blocks = cute.ceil_div(seqlen, BLOCK)
+        num_blocks = cute.ceil_div(seqlen, self.page_size)
         num_super = cute.ceil_div(num_blocks, PAGES)
 
         if split_id < num_super:
@@ -319,8 +321,10 @@ class IndexDecodeScoreShardedKernel:
                     cute.arch.mbarrier_arrive(tma_empty_mbar + tma_stage)
 
                     tile = super_id * PAGES + warp_id
-                    # Page row i holds the block's token i * TP + rank.
-                    k_base = tile * BLOCK + rank
+                    # P128 interleaves rows; P256 assigns contiguous rank slices.
+                    k_base = tile * self.page_size + rank
+                    if cutlass.const_expr(self.page_size == 256):
+                        k_base = tile * self.page_size + rank * ROWS
 
                     # causal mask
                     for q in cutlass.range_constexpr(Q_TILES):
@@ -331,6 +335,8 @@ class IndexDecodeScoreShardedKernel:
                                 q_local_pos = col % MAX_DQL
                                 q_pos = q_start + q_local_pos
                                 k_pos = k_base + (i * 8 + lane_id // 4) * TP
+                                if cutlass.const_expr(self.page_size == 256):
+                                    k_pos = k_base + i * 8 + lane_id // 4
                                 rC_q[i * 2 + j] = (
                                     rC_q[i * 2 + j] if q_pos >= k_pos else float("-inf")
                                 )
@@ -369,9 +375,10 @@ class IndexDecodeScoreShardedKernel:
                         if q_local_pos < decode_query_len:
                             t = batch_id * decode_query_len + q_local_pos
                             for p in cutlass.range_constexpr(PAGES):
-                                scores[t, head_id, super_id * PAGES + p] = epi_buffer[
-                                    lane_id, p
-                                ]
+                                block_id = super_id * PAGES + p
+                                if cutlass.const_expr(self.page_size == 256):
+                                    block_id = block_id * 2 + rank // (TP // 2)
+                                scores[t, head_id, block_id] = epi_buffer[lane_id, p]
 
                     tma_stage = (tma_stage + 1) % self.num_stages
                     if tma_stage == 0:
@@ -385,6 +392,7 @@ class IndexDecodeScoreShardedKernel:
         split_k: int,
         head_dim: int = 128,
         world_size: int = 4,
+        page_size: int = 128,
     ):
         bs = cute.sym_int()
         total_tokens = cute.sym_int()
@@ -394,7 +402,7 @@ class IndexDecodeScoreShardedKernel:
             dtype, (total_tokens, num_heads, head_dim), divisibility=16
         )
         k_cache = make_fake_tensor(
-            dtype, (cute.sym_int(), BLOCK // world_size, head_dim), divisibility=16
+            dtype, (cute.sym_int(), page_size // world_size, head_dim), divisibility=16
         )
         block_table = make_fake_tensor(Int32, (bs, cute.sym_int()), divisibility=1)
         scores = make_fake_tensor(
@@ -407,6 +415,7 @@ class IndexDecodeScoreShardedKernel:
             split_k,
             head_dim,
             world_size,
+            page_size,
         )
         stream = cute.runtime.make_fake_stream(use_tvm_ffi_env_stream=True)
         return cute.compile(
@@ -432,14 +441,20 @@ def minimax_m3_index_decode_score_sharded_cutedsl(
     max_decode_query_len: int,
     score_out: torch.Tensor,
     split_k: int = DEFAULT_SPLIT_K,
+    *,
+    page_size: int = 128,
+    world_size: int | None = None,
 ) -> None:
-    """Write local maxima for all heads over interleaved token shards."""
+    """Write B128 maxima for interleaved P128 or contiguous P256 shards."""
     if idx_q.dtype != torch.float8_e4m3fn or index_kv_shard.dtype != idx_q.dtype:
         raise TypeError("sharded index decode score supports FP8 E4M3 only")
     total_tokens, num_heads, head_dim = idx_q.shape
     batch = block_table.shape[0]
-    assert index_kv_shard.shape[1] in (BLOCK // 2, BLOCK // 4)
-    world_size = BLOCK // index_kv_shard.shape[1]
+    assert page_size in (128, 256)
+    if world_size is None:
+        world_size = page_size // index_kv_shard.shape[1]
+    assert world_size in SUPPORTED_TP
+    assert index_kv_shard.shape[1] == page_size // world_size
     assert total_tokens == batch * decode_query_len
     assert 1 <= decode_query_len <= max_decode_query_len
     assert num_heads * max_decode_query_len <= 32
@@ -452,7 +467,10 @@ def minimax_m3_index_decode_score_sharded_cutedsl(
         split_k,
         head_dim,
         world_size,
+        page_size,
     )
+    if page_size == 256:
+        score_out.fill_(float("-inf"))
     kernel(idx_q, index_kv_shard, block_table, score_out, seq_lens, rank)
 
 

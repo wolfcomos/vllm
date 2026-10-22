@@ -486,3 +486,10 @@ unchanged. The local prefill path uses the Triton scorer with up to 1024 queries
 per compute chunk and at most 32 MiB of score scratch. Candidates accumulate in
 reusable buffers for one NCCL exchange per layer.
 There is no automatic path selection; compare full-model performance for your workload.
+
+With an NVFP4 main KV cache, `--block-size 256` uses contiguous index-K
+shards within each physical page. Logical ranking blocks remain 128 tokens:
+TP2 owns a full block per rank, while TP4 owns half a block. Candidate exchange
+is still required to route results to the query-head owners. Page size and
+layout are fixed at startup; `gather` and `local_score` share that layout.
+P256 requires the corresponding MSA P256 NVFP4 kernel support.
