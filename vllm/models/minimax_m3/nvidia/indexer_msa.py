@@ -722,13 +722,7 @@ def resolve_index_k_shard(
     tp = get_tensor_model_parallel_world_size()
     if get_comm(vllm_config, total_index_heads) is None:
         return 1
-    logger.info_once(
-        "MiniMax M3 index-K cache sharded over TP%d (%d of %d tokens per block "
-        "per rank)",
-        tp,
-        PAGE_SIZE // tp,
-        PAGE_SIZE,
-    )
+    logger.info_once("MiniMax M3 index-K cache sharded over TP%d", tp)
     return tp
 
 
