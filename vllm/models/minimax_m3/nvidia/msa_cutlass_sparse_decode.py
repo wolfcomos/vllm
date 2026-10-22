@@ -120,8 +120,7 @@ class MSACutlassDecodePlanCache:
             use_fp8_kvcache=True,
             split_prefill_decode=False,
             device=device,
-            # The Q8KV4 route keeps plan-time lengths and its own page offsets,
-            # which this cached plan does not refresh.
+            # P256 uses Q8KV4 with fixed page strides and refreshed lengths.
             decode_backend="q8kv4" if page_size == 256 else "kv_mode3",
         )
 

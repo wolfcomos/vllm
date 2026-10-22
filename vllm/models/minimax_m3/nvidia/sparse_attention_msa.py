@@ -87,6 +87,14 @@ class MiniMaxM3SparseMSANvfp4Backend(MiniMaxM3SparseMSABackend):
     def customize_spec(cls, spec: AttentionSpec) -> AttentionSpec:
         """Store each head's K and V as two slots of packed data + block scales
         (see ``nvfp4_kv_cache_views``)."""
+        if spec.block_size == 256:
+            try:
+                nvfp4_kv_cache_views(torch.empty((1, 2, 256, 72), dtype=torch.uint8))
+            except ValueError as error:
+                raise ValueError(
+                    "MiniMax M3 P256 requires MSA P256/B128 NVFP4 kernel support; "
+                    "the installed fmha_sm100 dependency supports only P128."
+                ) from error
         if spec.state_content_bytes is not None or not spec.kv_quant_mode.is_nvfp4:
             return spec
         return replace(
