@@ -668,6 +668,8 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
             q_fp8_scale=self._q_scale_float,
             kv_k_scale=self._k_scale if self.use_nvfp4_kv else None,
             kv_v_scale=self._v_scale if self.use_nvfp4_kv else None,
+            # CP scoring reads step metadata before waiting for this writer.
+            enable_pdl=self.indexer.index_cache.tp_shard == 1,
         )
 
         output = torch.empty_like(q)

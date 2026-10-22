@@ -399,6 +399,8 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
                     d.decode_query_len,
                     d.max_decode_query_len,
                     scores,
+                    use_pdl=True,
+                    prefetch_history=True,
                 )
                 sharded_score.minimax_m3_index_select_publish_candidates(
                     scores,
@@ -413,6 +415,7 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
                     init_blocks=self.init_blocks,
                     local_blocks=self.local_blocks,
                     spin_limit=SPIN_LIMIT,
+                    use_pdl=True,
                 )
                 sharded_score.minimax_m3_index_merge_candidates(
                     comm.recv[slot_set],
@@ -422,6 +425,7 @@ class MiniMaxM3IndexerMSAImpl(MiniMaxM3IndexerImpl):
                     init_blocks=self.init_blocks,
                     local_blocks=self.local_blocks,
                     spin_limit=SPIN_LIMIT,
+                    use_pdl=True,
                 )
             else:
                 from vllm.models.minimax_m3.nvidia.ops import (
