@@ -628,6 +628,7 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
         # With query_fp8, q is emitted only in fp8; the attend dequantizes it
         # into ``q`` for the tokens that run on Triton decode.
         query_fp8 = self._allocate_query_fp8(qkv)
+        prefetch_index_history = False
         if self.indexer.index_cache.tp_shard > 1:
             attn_metadata = get_forward_context().attn_metadata
             assert isinstance(attn_metadata, dict)
@@ -637,6 +638,7 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
             )
             assert index_md.index_slot_mapping is not None
             index_slot_mapping = index_md.index_slot_mapping
+            prefetch_index_history = index_md.decode is not None
         # index_q matches the index-K cache dtype (e4m3 for the fp8 score path);
         # the fused kernel emits fp8 directly when this buffer is e4m3.
         index_q = qkv.new_empty(
@@ -669,7 +671,7 @@ class MiniMaxM3SparseAttention(nn.Module, AttentionLayerBase):
             kv_k_scale=self._k_scale if self.use_nvfp4_kv else None,
             kv_v_scale=self._v_scale if self.use_nvfp4_kv else None,
             # CP scoring reads step metadata before waiting for this writer.
-            enable_pdl=self.indexer.index_cache.tp_shard == 1,
+            enable_pdl=not prefetch_index_history,
         )
 
         output = torch.empty_like(q)

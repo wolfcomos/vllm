@@ -164,8 +164,10 @@ def _check_indexer_forwards(config, device, rank, comm):
         for impls in layers
     ]
 
+    active_layers = 5
+
     def run(sharded, metadata, queries):
-        impls = layers[sharded]
+        impls = layers[sharded][:active_layers]
         md = {impl.index_cache.prefix: metadata[sharded] for impl in impls}
         with set_forward_context(md, config):
             for impl, query in zip(impls, queries):
@@ -179,7 +181,7 @@ def _check_indexer_forwards(config, device, rank, comm):
 
     def check_local(metadata, queries, num_tokens):
         run(False, metadata, queries)
-        for reference, sharded in zip(*layers):
+        for reference, sharded in zip(*(impls[:active_layers] for impls in layers)):
             torch.testing.assert_close(
                 sharded.topk_indices_buffer[:num_tokens].sort(dim=-1).values,
                 reference.topk_indices_buffer[:num_tokens].sort(dim=-1).values,
@@ -196,6 +198,16 @@ def _check_indexer_forwards(config, device, rank, comm):
             )
         assert comm.errors.item() == 0
         assert torch.count_nonzero(comm.recv[..., 32]).item() == 0
+        if (
+            metadata[1].prefill_msa is None
+            and active_layers > 1
+            and comm.tagged_enabled
+        ):
+            tags = (comm.tagged_recv[..., :num_tokens, :] >> 32) & 0xFFFFFFFF
+            generations = comm.expected_generations[:, None, :, :num_tokens, None]
+            torch.testing.assert_close(
+                tags, (generations.long() & 0xFFFFFFFF).expand_as(tags)
+            )
 
     def check(metadata, queries, num_tokens):
         error = None
@@ -220,7 +232,9 @@ def _check_indexer_forwards(config, device, rank, comm):
         BatchSpec(seq_lens=[2305, 2561, 2624, 2720], query_lens=[1, 1, 64, 96]),
         BatchSpec(seq_lens=[129, 2305], query_lens=[1, 1]),
     ]
-    for batch in batches:
+    for batch, active_layers in zip(batches, (5, 2, 1, 5, 5)):
+        # Exercise wrap-safe rotation, single-layer ACK fallback and mixed transitions.
+        comm.num_layers = active_layers
         common = create_common_attn_metadata(
             batch, 128, device, arange_block_indices=True
         )
