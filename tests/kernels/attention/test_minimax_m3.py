@@ -1549,8 +1549,9 @@ def test_decode_index_score_cutedsl_correctness(
     ]
     + [(2, q, 8, 1) for q in (1, 3, 8)],
 )
+@pytest.mark.parametrize("page_size", [128, 256])
 def test_sharded_decode_index_score_matches_reference(
-    world, decode_query_len, max_decode_query_len, split_k
+    world, decode_query_len, max_decode_query_len, split_k, page_size
 ):
     pytest.importorskip("cutlass")
     from vllm.third_party.fmha_sm100.api import sparse_topk_select
@@ -1572,7 +1573,12 @@ def test_sharded_decode_index_score_matches_reference(
     )
     total_q = seq_lens.numel() * decode_query_len
     q = torch.randn(total_q, heads, head_dim, device="cuda").to(torch.float8_e4m3fn)
-    kv = torch.randn(num_pages, BLOCK_SIZE, head_dim, device="cuda").to(q.dtype)
+    kv = torch.randn(num_pages, page_size, head_dim, device="cuda").to(q.dtype)
+    logical_table = block_table
+    if page_size == 256:
+        logical_table = (
+            block_table[..., None] * 2 + torch.arange(2, device="cuda")
+        ).flatten(1)
     # Local destinations isolate score/head routing from the real TP transport test.
     recv = [
         torch.zeros(
@@ -1596,8 +1602,8 @@ def test_sharded_decode_index_score_matches_reference(
     active_q = 3 * decode_query_len
     expected[:, :active_q] = _reference_decode_index_score(
         q[:active_q],
-        kv,
-        block_table[:3],
+        kv.view(-1, BLOCK_SIZE, head_dim),
+        logical_table[:3],
         seq_lens[:3],
         decode_query_len,
         MAX_K_TILES,
@@ -1609,7 +1615,14 @@ def test_sharded_decode_index_score_matches_reference(
             scores.fill_(-float("inf"))
             minimax_m3_index_decode_score_sharded_cutedsl(
                 q,
-                kv[:, rank::world].contiguous(),
+                (
+                    kv[
+                        :,
+                        rank * (page_size // world) : (rank + 1) * (page_size // world),
+                    ]
+                    if page_size == 256
+                    else kv[:, rank::world]
+                ).contiguous(),
                 block_table,
                 seq_lens,
                 rank,
@@ -1617,6 +1630,8 @@ def test_sharded_decode_index_score_matches_reference(
                 max_decode_query_len,
                 scores,
                 split_k=split_k,
+                page_size=page_size,
+                world_size=world,
             )
             torch.maximum(all_scores, scores, out=all_scores)
             sparse_topk_select(

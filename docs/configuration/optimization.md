@@ -485,3 +485,10 @@ Both paths preserve logical 128-token block IDs; decode and main attention are
 unchanged. The local prefill path uses the Triton scorer, bounds temporary scores
 to 256 queries and the batch context length, and exchanges candidates with NCCL.
 There is no automatic path selection; compare full-model performance for your workload.
+
+With an NVFP4 main KV cache, `--block-size 256` uses contiguous index-K
+shards within each physical page. Logical ranking blocks remain 128 tokens:
+TP2 owns a full block per rank, while TP4 owns half a block. Candidate exchange
+is still required to route results to the query-head owners. Page size and
+layout are fixed at startup; `gather` and `local_score` share that layout.
+P256 requires the corresponding MSA P256 NVFP4 kernel support.

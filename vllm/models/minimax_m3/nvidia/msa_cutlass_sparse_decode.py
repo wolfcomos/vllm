@@ -122,10 +122,15 @@ class MSACutlassDecodePlanCache:
             device=device,
             # The Q8KV4 route keeps plan-time lengths and its own page offsets,
             # which this cached plan does not refresh.
-            decode_backend="kv_mode3",
+            decode_backend="q8kv4" if page_size == 256 else "kv_mode3",
         )
 
         plan_info = plan[3]
+        if page_size == 256:
+            plan_info["q8kv4"]["kv_indptr"] = (
+                torch.arange(batch + 1, dtype=torch.int32, device=device)
+                * page_table_stride
+            )
         row_starts = (
             torch.arange(batch, dtype=torch.int32, device=device)
             .mul_(page_table_stride)
@@ -213,6 +218,8 @@ class MSACutlassDecodePlanCache:
             self.plans[key] = plan
 
         plan_info = plan[3]
+        if page_size == 256:
+            plan_info["q8kv4"]["seq_lens"].copy_(seq_lens)
         num_rows = batch * decode_query_len
         _update_runtime_metadata_kernel[(triton.cdiv(num_rows, 128),)](
             seq_lens,
@@ -269,7 +276,7 @@ def supports_cutlass_sparse_decode(
         and current_platform.is_device_capability_family(100)
         and (kv_cache_dtype in ("fp8", "fp8_e4m3") or nvfp4)
         and _supported_head_geometry(num_q_heads, num_kv_heads)
-        and page_size == _PAGE_SIZE
+        and (page_size == _PAGE_SIZE or (page_size == 256 and nvfp4))
         and topk_blocks == _TOPK
     )
 

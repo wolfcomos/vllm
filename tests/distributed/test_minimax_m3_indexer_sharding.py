@@ -63,7 +63,10 @@ def _indexer_sharding(monkeypatch, tp_size, pp_size, rank, distributed_init_port
             assert msa.resolve_index_k_shard(config, 4, "fp8", 16) == tp_size
             comm = msa.get_comm()
             assert comm is not None
-            _check_indexer_forwards(config, device, rank, comm)
+            for page_size in (128, 256):
+                config.cache_config.block_size = page_size
+                _check_indexer_forwards(config, device, rank, comm)
+            config.cache_config.block_size = 128
             _check_sharding_policy(config, comm)
         get_tp_group().barrier()
 
@@ -127,6 +130,7 @@ def _check_indexer_forwards(config, device, rank, comm):
 
     torch.manual_seed(123)
     world = comm.world
+    page_size = config.cache_config.block_size
     local_heads = 4 // world
     # Five layers exercise all three receive slot sets, including wrap across
     # steps. Keep the actual production communication objects and dispatch.
@@ -143,7 +147,7 @@ def _check_indexer_forwards(config, device, rank, comm):
                     index_head_dim=128,
                     init_blocks=1,
                     local_blocks=1,
-                    prefix=f"indexer_{sharded}_{layer}",
+                    prefix=f"indexer_p{page_size}_{sharded}_{layer}",
                     cache_config=config.cache_config,
                     indexer_kv_dtype="fp8",
                     index_k_shard=world if sharded else 1,
@@ -163,6 +167,12 @@ def _check_indexer_forwards(config, device, rank, comm):
         )
         for impls in layers
     ]
+
+    def local_shard(cache):
+        if page_size == 256:
+            rows = page_size // world
+            return cache[:, rank * rows : (rank + 1) * rows]
+        return cache[:, rank::world]
 
     def run(sharded, metadata, queries):
         impls = layers[sharded]
@@ -210,7 +220,7 @@ def _check_indexer_forwards(config, device, rank, comm):
     ]
     for batch in batches:
         common = create_common_attn_metadata(
-            batch, 128, device, arange_block_indices=True
+            batch, page_size, device, arange_block_indices=True
         )
         num_pages = common.block_table_tensor.numel()
         common.block_table_tensor = torch.randperm(num_pages, device=device)[
@@ -235,13 +245,13 @@ def _check_indexer_forwards(config, device, rank, comm):
         for layer, (reference, sharded) in enumerate(zip(*layers)):
             # Page bits dominate the small random row contribution: each head
             # has distinct block scores, with a different ranking per head.
-            cache = torch.randint(-4, 5, (num_pages, 128, 128), device=device)
+            cache = torch.randint(-4, 5, (num_pages, page_size, 128), device=device)
             cache[:, :, :7] = page_codes[:, None]
             cache = cache.to(torch.float8_e4m3fn)
             reference.index_cache.bind_kv_cache(cache.unsqueeze(1))
-            shard = cache[:, rank::world].contiguous()
+            shard = local_shard(cache).contiguous()
             sharded.index_cache.bind_kv_cache(
-                shard.view(num_pages, 1, 128, 128 // world)
+                shard.view(num_pages, 1, page_size, 128 // world)
             )
             caches.append(cache)
             query = (
@@ -268,7 +278,7 @@ def _check_indexer_forwards(config, device, rank, comm):
                 for query, cache, impl in zip(queries, caches, layers[1]):
                     query.copy_((-query.float()).to(query.dtype))
                     cache.view(torch.uint8).copy_(cache.view(torch.uint8).roll(1, 0))
-                    impl.index_cache.kv_cache.copy_(cache[:, rank::world])
+                    impl.index_cache.kv_cache.copy_(local_shard(cache))
                 graph.replay()
             check(metadata, queries, num_tokens)
         else:
@@ -282,7 +292,9 @@ def _check_indexer_forwards(config, device, rank, comm):
             builders[1].prefill_local_score = False
             pages = torch.tensor([num_pages - 1, 0, 7, 0], device=device)
             gathered = [
-                msa.gather_prefill_pages(impl.index_cache.kv_cache, pages, comm)
+                msa.gather_prefill_pages(
+                    impl.index_cache.kv_cache, pages, comm, page_size=page_size
+                )
                 for impl in layers[1]
             ]
             for actual, cache in zip(gathered, caches):
