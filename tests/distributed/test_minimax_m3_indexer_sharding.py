@@ -226,6 +226,12 @@ def _check_indexer_forwards(config, device, rank, comm):
         common.block_table_tensor = torch.randperm(num_pages, device=device)[
             common.block_table_tensor.long()
         ].int()
+        # Runtime tables keep their configured width across batches.
+        table_width = (config.model_config.max_model_len + page_size - 1) // page_size
+        common.block_table_tensor = torch.nn.functional.pad(
+            common.block_table_tensor,
+            (0, table_width - common.block_table_tensor.shape[1]),
+        )
         if len(batch.query_lens) > 1 and batch.query_lens[-1] > 8:
             # Shared prefix pages must retain each request's logical order.
             common.block_table_tensor[-1, :8] = common.block_table_tensor[-2, :8]
@@ -237,16 +243,20 @@ def _check_indexer_forwards(config, device, rank, comm):
         )
         num_tokens = batch.compute_num_tokens()
         bits = torch.arange(7, device=device)
+        blocks_per_page = page_size // 128
+        num_blocks = num_pages * blocks_per_page
+        assert num_blocks <= 1 << bits.numel()
         page_codes = (
-            (torch.arange(num_pages, device=device)[:, None] >> bits) & 1
+            (torch.arange(num_blocks, device=device)[:, None] >> bits) & 1
         ) * 64
         head_codes = torch.tensor([0, 21, 42, 85], device=device)[:, None]
         queries, caches = [], []
         for layer, (reference, sharded) in enumerate(zip(*layers)):
-            # Page bits dominate the small random row contribution: each head
-            # has distinct block scores, with a different ranking per head.
+            # Logical B128 codes keep P256 half-pages distinct at the cutoff.
             cache = torch.randint(-4, 5, (num_pages, page_size, 128), device=device)
-            cache[:, :, :7] = page_codes[:, None]
+            cache.view(num_pages, blocks_per_page, 128, 128)[..., :7] = page_codes.view(
+                num_pages, blocks_per_page, 1, 7
+            )
             cache = cache.to(torch.float8_e4m3fn)
             reference.index_cache.bind_kv_cache(cache.unsqueeze(1))
             shard = local_shard(cache).contiguous()
