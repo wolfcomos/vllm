@@ -726,7 +726,7 @@ def minimax_m3_index_score(
     assert score_out.shape[:2] == (num_idx_heads, total_q)
     assert score_out.shape[2] >= max_block
     score = score_out
-    if page_size == 256 and tp > 1:
+    if tp > 1:
         score.fill_(float("-inf"))
     BLOCK_SIZE_Q = 64
     n_q_tiles = triton.cdiv(max_query_len, BLOCK_SIZE_Q)
