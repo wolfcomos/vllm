@@ -19,6 +19,7 @@ import torch
 from vllm.platforms import current_platform
 from vllm.triton_utils import tl, triton
 from vllm.utils.math_utils import round_up
+from vllm.utils.platform_utils import num_compute_units
 
 # One sparse block == one KV page.
 SPARSE_BLOCK_SIZE = 128
@@ -734,7 +735,15 @@ def minimax_m3_index_score(
         1,
         min(max_block, SCORE_TARGET_GRID // max(1, n_q_tiles * batch * num_idx_heads)),
     )
-    if not (
+    if tp > 1:
+        split_k = min(
+            max_block,
+            triton.cdiv(
+                2 * num_compute_units(idx_q.device.index or 0),
+                max(1, n_q_tiles * batch * num_idx_heads),
+            ),
+        )
+    elif not (
         current_platform.is_cuda() and current_platform.is_device_capability((12, 0))
     ):
         split_k = 1
