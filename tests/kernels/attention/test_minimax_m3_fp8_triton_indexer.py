@@ -145,10 +145,11 @@ def test_bf16_query_against_fp8_cache_decode_topk_matches_bf16() -> None:
 
 @pytest.mark.skipif(not FP8_CUDA_SUPPORTED, reason="CUDA FP8 support required")
 @pytest.mark.parametrize("tp", [2, 4])
+@pytest.mark.parametrize("page_size", [128, 256])
 @pytest.mark.parametrize("long_context", [False, True])
 @torch.inference_mode()
 def test_prefill_shard_scores_preserve_causal_block_max(
-    tp: int, long_context: bool
+    tp: int, page_size: int, long_context: bool
 ) -> None:
     """Interleaved shards reproduce full scores for shared prefixes and tail pages."""
     torch.manual_seed(12)
@@ -159,12 +160,13 @@ def test_prefill_shard_scores_preserve_causal_block_max(
     seq = torch.tensor(lengths, dtype=torch.int32, device="cuda")
     prefix = seq - torch.tensor(query_lens, device="cuda")
     blocks = (max(lengths) + PAGE - 1) // PAGE
-    table = torch.stack([torch.randperm(blocks, device="cuda") for _ in lengths]).int()
+    pages = (max(lengths) + page_size - 1) // page_size
+    table = torch.stack([torch.randperm(pages, device="cuda") for _ in lengths]).int()
     table[1, 0] = table[0, 0]
     query = torch.randint(-2, 3, (total_q, 4, 128), device="cuda").to(
         torch.float8_e4m3fn
     )
-    cache = torch.randint(-2, 3, (blocks, 128, 128), device="cuda").to(
+    cache = torch.randint(-2, 3, (pages, page_size, 128), device="cuda").to(
         torch.float8_e4m3fn
     )
     reference = torch.full(
@@ -175,21 +177,33 @@ def test_prefill_shard_scores_preserve_causal_block_max(
         for token in range(query_len):
             position = length - query_len + token
             for block in range(position // 128 + 1):
-                keys = cache[table[req, block]].float()
+                page = block // (page_size // 128)
+                offset = (block % (page_size // 128)) * 128
+                keys = cache[table[req, page], offset : offset + 128].float()
                 dots = keys @ query[start + token].float().T
                 dots[
                     torch.arange(128, device="cuda") + block * 128 > position
                 ] = -float("inf")
                 for rank in range(tp):
-                    reference[rank, :, start + token, block] = dots[rank::tp].amax(
-                        dim=0
-                    )
+                    if page_size == 256:
+                        positions = torch.arange(128, device="cuda") + offset
+                        owned = positions // (page_size // tp) == rank
+                        if not owned.any():
+                            continue
+                        local = dots[owned]
+                    else:
+                        local = dots[rank::tp]
+                    reference[rank, :, start + token, block] = local.amax(dim=0)
     partial = []
     for rank in range(tp):
         out = torch.full_like(reference[rank], -float("inf"))
         minimax_m3_index_score(
             query,
-            cache[:, rank::tp].contiguous(),
+            (
+                cache[:, rank * (page_size // tp) : (rank + 1) * (page_size // tp)]
+                if page_size == 256
+                else cache[:, rank::tp]
+            ).contiguous(),
             table,
             cu,
             seq,
@@ -200,6 +214,7 @@ def test_prefill_shard_scores_preserve_causal_block_max(
             rank=rank,
             tp=tp,
             score_out=out,
+            page_size=page_size,
         )
         partial.append(out)
     torch.testing.assert_close(torch.stack(partial), reference, rtol=0, atol=0)
