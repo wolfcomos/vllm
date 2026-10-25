@@ -27,11 +27,12 @@ from vllm.platforms import current_platform
     ],
 )
 @pytest.mark.parametrize("page_size", [128, 256])
+@pytest.mark.parametrize("tp", [2, 4])
 @pytest.mark.parametrize("initialize", [True, False])
 @pytest.mark.parametrize("device_plan", [False, True])
 @torch.inference_mode()
 def test_fmha_prefill_shard_scores(
-    query_lens, prefixes, page_size, initialize, device_plan
+    query_lens, prefixes, page_size, tp, initialize, device_plan
 ):
     from vllm.third_party.fmha_sm100.api import (
         fmha_index_score_sharded,
@@ -108,11 +109,13 @@ def test_fmha_prefill_shard_scores(
             tail = (length - 1) % page_size
             cache[page, tail:] = 0
             cache[page, tail:, 0] = -256 if iteration == 0 else 256
-        for rank in range(2):
+        for rank in range(tp):
             rows = (
-                torch.arange(rank, 128, 2, device="cuda")
+                torch.arange(rank, 128, tp, device="cuda")
                 if page_size == 128
-                else torch.arange(rank * 128, (rank + 1) * 128, device="cuda")
+                else torch.arange(
+                    rank * page_size // tp, (rank + 1) * page_size // tp, device="cuda"
+                )
             )
             storage.fill_(float("nan"))
             fmha_index_score_sharded(
@@ -121,6 +124,7 @@ def test_fmha_prefill_shard_scores(
                 table,
                 plan,
                 rank=rank,
+                tp=tp,
                 max_score=scores,
                 sm_scale=1.0,
                 initialize=initialize,
@@ -132,7 +136,7 @@ def test_fmha_prefill_shard_scores(
                 positions = torch.arange(qlen, device="cuda") + prefix
                 q = query[start : start + qlen].float()
                 for block in range((prefix + qlen + 127) // 128):
-                    if page_size == 256 and block % 2 != rank:
+                    if page_size == 256 and block % 2 != rank * 2 // tp:
                         continue
                     page = block // (page_size // 128)
                     keys = cache[table[req, page], rows].float()
