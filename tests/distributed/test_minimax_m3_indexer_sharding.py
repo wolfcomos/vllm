@@ -448,45 +448,89 @@ def _check_sharding_policy(config, original_comm):
         hf_config_override={"sparse_attention_config": sparse_config},
     )
     model = copy(policy.model_config)
-    for mode, length, cap, active_cap, q, eager, graph_mode, expected in [
-        ("on", 4096, 1, None, 4, False, CUDAGraphMode.FULL, original_comm.world),
-        ("off", 1024 * 1024, 32, None, 1, False, CUDAGraphMode.FULL, 1),
-        ("on", 4096, 1, None, 1, True, CUDAGraphMode.NONE, original_comm.world),
-        ("off", 1024 * 1024, 32, None, 1, True, CUDAGraphMode.NONE, 1),
+    policy.model_config = copy(model)
+    policy.model_config.max_model_len = 160 * 1024
+    policy.cache_config.block_size = 256
+    policy.cache_config.cache_dtype = "nvfp4"
+    policy.cache_config.enable_prefix_caching = False
+    policy.scheduler_config = SchedulerConfig(
+        max_model_len=160 * 1024,
+        is_encoder_decoder=False,
+        max_num_seqs=14,
+        max_num_batched_tokens=8192,
+        enable_chunked_prefill=True,
+    )
+    policy.attention_config = AttentionConfig(
+        indexer_cache_sharding="auto", indexer_prefill_cp="auto"
+    )
+    policy.compilation_config = CompilationConfig(cudagraph_mode=CUDAGraphMode.FULL)
+    policy.speculative_config = copy(config.speculative_config)
+    policy.speculative_config.method = "eagle3"
+    policy.speculative_config.num_speculative_tokens = 3
+    assert msa._use_auto_indexer_cp(policy)
+    assert msa.resolve_index_k_shard(policy, 4, "fp8", 16) == original_comm.world
+    current = msa.get_comm()
+    assert current is not None
+    assert current.max_decode_tokens == 14 * 4
+
+    dynamic_schedule = [(1, 14, 3)]
+    for target, field, value in [
+        (policy.model_config, "max_model_len", 160 * 1024 - 1),
+        (policy.model_config, "enforce_eager", True),
+        (policy.cache_config, "block_size", 128),
+        (policy.cache_config, "cache_dtype", "auto"),
+        (policy.cache_config, "enable_prefix_caching", True),
+        (policy.scheduler_config, "max_num_seqs", 13),
+        (policy.scheduler_config, "max_num_active_seqs", 13),
+        (policy.scheduler_config, "max_num_batched_tokens", 8191),
+        (policy.scheduler_config, "enable_chunked_prefill", False),
+        (policy.compilation_config, "cudagraph_mode", CUDAGraphMode.NONE),
+        (policy.speculative_config, "method", "ngram"),
+        (policy.speculative_config, "num_speculative_tokens", 2),
+        (policy.speculative_config, "num_speculative_tokens", 4),
+        (
+            policy.speculative_config,
+            "num_speculative_tokens_per_batch_size",
+            dynamic_schedule,
+        ),
+        (policy.speculative_config, "parallel_drafting", True),
     ]:
-        policy.model_config = copy(model)
-        policy.model_config.max_model_len = length
-        policy.model_config.enforce_eager = eager
-        policy.scheduler_config = SchedulerConfig(
-            max_model_len=length,
-            is_encoder_decoder=False,
-            max_num_seqs=cap,
-            max_num_active_seqs=active_cap,
-            max_num_batched_tokens=8192,
-            enable_chunked_prefill=True,
-        )
-        policy.attention_config = AttentionConfig(indexer_cache_sharding=mode)
-        policy.compilation_config = CompilationConfig(cudagraph_mode=graph_mode)
-        policy.speculative_config = (
-            SpeculativeConfig(method="ngram", num_speculative_tokens=q - 1)
-            if q > 1
-            else None
-        )
-        before = msa.get_comm()
-        assert msa.resolve_index_k_shard(policy, 4, "fp8", 16) == expected
-        current = msa.get_comm()
-        if expected == 1:
-            assert current is before
-        else:
-            assert current is not before
-            assert current.max_decode_tokens == cap * q
-            assert msa.get_comm(policy, 4) is current
-            policy.model_config.max_model_len = length * 2
-            resized = msa.get_comm(policy, 4)
-            assert resized is not current
-            assert resized.scores.shape[-1] == 2 * current.scores.shape[-1]
-            policy.model_config.max_model_len = length
-            assert msa.get_comm(policy, 4) is not resized
+        original = getattr(target, field)
+        setattr(target, field, value)
+        assert not msa._use_auto_indexer_cp(policy)
+        assert msa.resolve_index_k_shard(policy, 4, "fp8", 16) == 1
+        assert msa.get_comm() is current
+        setattr(target, field, original)
+
+    policy.attention_config = AttentionConfig(indexer_cache_sharding="on")
+    policy.model_config.max_model_len = 4096
+    policy.model_config.enforce_eager = True
+    policy.cache_config.block_size = 128
+    policy.cache_config.enable_prefix_caching = True
+    policy.scheduler_config = SchedulerConfig(
+        max_model_len=4096,
+        is_encoder_decoder=False,
+        max_num_seqs=1,
+        max_num_batched_tokens=1,
+        enable_chunked_prefill=False,
+    )
+    policy.compilation_config = CompilationConfig(cudagraph_mode=CUDAGraphMode.NONE)
+    policy.speculative_config = SpeculativeConfig(
+        method="ngram", num_speculative_tokens=3
+    )
+    assert msa.resolve_index_k_shard(policy, 4, "fp8", 16) == original_comm.world
+    current = msa.get_comm()
+    assert current is not None
+    assert current.max_decode_tokens == 4
+    assert msa.get_comm(policy, 4) is current
+    policy.model_config.max_model_len = 8192
+    resized = msa.get_comm(policy, 4)
+    assert resized is not current
+    assert resized.scores.shape[-1] == 2 * current.scores.shape[-1]
+    policy.model_config.max_model_len = 4096
+    assert msa.get_comm(policy, 4) is not resized
+    policy.attention_config = AttentionConfig(indexer_cache_sharding="off")
+    assert msa.resolve_index_k_shard(policy, 4, "fp8", 16) == 1
     assert original_comm.num_layers == 5
     assert original_comm.max_decode_tokens == 4 * 8
 

@@ -84,6 +84,10 @@ TOPK = 16
 PREFILL_FMHA_CHUNK_SIZE = 8192
 PREFILL_FMHA_SCRATCH_BYTES = 256 << 20
 SPIN_LIMIT = 1 << 26
+AUTO_CP_MIN_CONTEXT_LEN = 160 * 1024
+AUTO_CP_MIN_BATCH_SIZE = 14
+AUTO_CP_MIN_PREFILL_TOKENS = 8192
+AUTO_CP_DECODE_QUERY_LEN = 4
 # Speculative methods whose drafter does not reuse the target's sparse layers.
 _SPEC_METHODS = (None, "eagle", "eagle3", "ngram", "suffix", "draft_model")
 _COMM: "IndexKShardComm | None" = None
@@ -180,14 +184,13 @@ class MiniMaxM3IndexerMSAMetadataBuilder(MiniMaxM3IndexerMetadataBuilder):
         self.index_k_tp = 1 if content is None else full // content
         self.logical_block_table: torch.Tensor | None = None
         self.max_num_reqs = vllm_config.scheduler_config.max_num_seqs
-        self.prefill_local_score = (
-            self.index_k_tp > 1
-            and vllm_config.attention_config.indexer_prefill_cp
-            in ("local_score", "local_score_unified")
+        prefill_mode = vllm_config.attention_config.indexer_prefill_cp
+        self.prefill_local_score = self.index_k_tp > 1 and (
+            prefill_mode in ("local_score", "local_score_unified")
+            or (prefill_mode == "auto" and _use_auto_indexer_cp(vllm_config))
         )
         self.prefill_unified = (
-            self.prefill_local_score
-            and vllm_config.attention_config.indexer_prefill_cp == "local_score_unified"
+            self.prefill_local_score and prefill_mode == "local_score_unified"
         )
         self.index_k_rank = 0
         self.index_k_slots: torch.Tensor | None = None
@@ -805,6 +808,32 @@ def prefill_local_score(
     )
 
 
+def _decode_batch_cap(vllm_config: VllmConfig) -> int:
+    scheduler = vllm_config.scheduler_config
+    return scheduler.max_num_active_seqs or scheduler.max_num_seqs
+
+
+def _use_auto_indexer_cp(vllm_config: VllmConfig) -> bool:
+    spec = vllm_config.speculative_config
+    scheduler = vllm_config.scheduler_config
+    return (
+        vllm_config.cache_config.block_size == 256
+        and vllm_config.cache_config.cache_dtype == "nvfp4"
+        and vllm_config.model_config.max_model_len >= AUTO_CP_MIN_CONTEXT_LEN
+        and _decode_batch_cap(vllm_config) >= AUTO_CP_MIN_BATCH_SIZE
+        and scheduler.max_num_batched_tokens >= AUTO_CP_MIN_PREFILL_TOKENS
+        and scheduler.enable_chunked_prefill
+        and not vllm_config.cache_config.enable_prefix_caching
+        and not vllm_config.model_config.enforce_eager
+        and vllm_config.compilation_config.cudagraph_mode.has_full_cudagraphs()
+        and spec is not None
+        and spec.method == "eagle3"
+        and spec.num_speculative_tokens_per_batch_size is None
+        and not spec.parallel_drafting
+        and max_decode_query_len(vllm_config) == AUTO_CP_DECODE_QUERY_LEN
+    )
+
+
 def resolve_index_k_shard(
     vllm_config: VllmConfig,
     total_index_heads: int,
@@ -827,6 +856,8 @@ def resolve_index_k_shard(
         )
         return 1
     tp = get_tensor_model_parallel_world_size()
+    if mode == "auto" and not _use_auto_indexer_cp(vllm_config):
+        return 1
     if get_comm(vllm_config, total_index_heads) is None:
         return 1
     logger.info_once("MiniMax M3 index-K cache sharded over TP%d", tp)

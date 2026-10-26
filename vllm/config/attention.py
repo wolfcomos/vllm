@@ -12,7 +12,7 @@ from vllm.v1.attention.backends.registry import AttentionBackendEnum
 
 IndexerKVDType = Literal["auto", "bf16", "fp8", "mxfp4", "nvfp4"]
 MiniMaxM3MSADecodeBackend = Literal["triton", "cutlass"]
-IndexerCacheSharding = Literal["off", "on"]
+IndexerCacheSharding = Literal["off", "auto", "on"]
 
 
 @config
@@ -99,16 +99,19 @@ class AttentionConfig:
 
     indexer_cache_sharding: IndexerCacheSharding = "off"
     """Shard the indexer cache across TP ranks on supported backends.
-    Layout is fixed at startup. MSA supports FP8 index K on single-node
-    NVLink TP2/TP4; unsupported configurations retain replicated storage."""
+    "auto" selects the measured P256 deployment profile at startup; "on"
+    requests sharding wherever supported. MSA supports FP8 index K on
+    single-node NVLink TP2/TP4; unsupported configurations retain replicated
+    storage. The selected layout stays fixed for the engine."""
 
-    indexer_prefill_cp: Literal["gather", "local_score", "local_score_unified"] = (
-        "gather"
-    )
+    indexer_prefill_cp: Literal[
+        "gather", "auto", "local_score", "local_score_unified"
+    ] = "gather"
     """MiniMax M3 MSA prefill execution with a TP-sharded index cache.
-    "gather" reconstructs K; "local_score" scores local K and exchanges Top16.
-    Experimental "local_score_unified" includes mixed-batch decode queries.
-    Pure decode and the startup cache layout are unchanged."""
+    "gather" reconstructs K; "auto" selects the measured P256 profile;
+    "local_score" scores local K and exchanges Top16. Experimental
+    "local_score_unified" includes mixed-batch decode queries. Pure decode and
+    the startup cache layout are unchanged."""
 
     indexer_sparse_logits: bool = False
     """DeepSeek V4.1 two-level indexer: score only the candidate blocks with

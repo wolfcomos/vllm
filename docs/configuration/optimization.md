@@ -486,7 +486,7 @@ local-score exchange during mixed batches; pure decode keeps its existing path.
 All modes preserve logical 128-token block IDs and main attention.
 Local prefill scores bounded query chunks and accumulates candidates
 in reusable buffers for one NCCL exchange per layer.
-There is no automatic path selection; compare full-model performance for your workload.
+Use explicit modes when comparing full-model performance for a workload.
 
 With an NVFP4 main KV cache, `--block-size 256` uses contiguous index-K
 shards within each physical page. Logical ranking blocks remain 128 tokens:
@@ -494,3 +494,24 @@ TP2 owns a full block per rank, while TP4 owns half a block. Candidate exchange
 is still required to route results to the query-head owners. Page size and
 layout are fixed at startup; `gather` and `local_score` share that layout.
 P256 requires the corresponding MSA P256 NVFP4 kernel support.
+
+The opt-in `auto` modes select the measured P256 long-context deployment:
+
+```bash
+--block-size 256 \
+--kv-cache-dtype nvfp4 \
+--enable-chunked-prefill \
+--no-enable-prefix-caching \
+--attention-config '{"indexer_kv_dtype":"fp8","indexer_cache_sharding":"auto","indexer_prefill_cp":"auto"}'
+```
+
+They select sharded storage and local prefill scoring for EAGLE3 with three
+speculative tokens when the configured maximum context is at least 163840
+tokens, the decode-batch capacity is at least 14, and the chunked-prefill token
+budget is at least 8192. The measured profile also requires NVFP4 main KV,
+fixed four-token decode queries, configured full CUDA graphs, and disabled
+prefix caching. This is an experimental startup deployment hint based on
+configured limits, not current request lengths or batch sizes; it does not
+select the page size. Defaults remain `off` and `gather`. To force the paths
+independently, set `indexer_cache_sharding` to `on` and `indexer_prefill_cp` to
+`gather` or `local_score`.
