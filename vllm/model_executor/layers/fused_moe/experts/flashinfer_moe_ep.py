@@ -153,6 +153,7 @@ class FlashInferMoeEpExperts(mk.FusedMoEExpertsModular):
                 self.moe_config,
                 apply_router_weight_on_input=layer.apply_router_weight_on_input,
             ),
+            use_w4a16=self.quant_config.quant_dtype is None,
         )
         adapter.warmup()
         for name, tensor in zip(KERNEL_WEIGHT_NAMES, adapter.kernel_weights()):

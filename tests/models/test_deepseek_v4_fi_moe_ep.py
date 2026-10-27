@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 
+import sys
 from dataclasses import replace
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
 import torch
@@ -11,6 +12,7 @@ from tests.kernels.moe.utils import make_dummy_moe_config
 from vllm.config.kernel import (
     FLASHINFER_MOE_EP_BACKENDS,
     FLASHINFER_MOE_EP_CUTEDSL,
+    FLASHINFER_MOE_EP_CUTEDSL_W4A16,
     FLASHINFER_MOE_EP_DEEP_GEMM,
     MEGA_MOE_BACKENDS,
     NATIVE_MEGA_MOE_BACKENDS,
@@ -34,12 +36,15 @@ from vllm.model_executor.layers.fused_moe.experts.flashinfer_moe_ep import (
     FlashInferMoeEpExperts,
     epilogue_from_quant_config,
 )
+from vllm.model_executor.layers.fused_moe.oracle import mxfp4 as mxfp4_oracle
 from vllm.model_executor.layers.fused_moe.oracle.mxfp4 import (
     FLASHINFER_MOE_EP_MXFP4_BACKENDS,
     Mxfp4MoeBackend,
+    convert_weight_to_mxfp4_moe_kernel_format,
     make_mxfp4_moe_quant_config,
     map_mxfp4_backend,
     mxfp4_round_up_hidden_size_and_intermediate_size,
+    select_mxfp4_moe_backend,
 )
 from vllm.model_executor.layers.fused_moe.oracle.mxfp4 import (
     backend_to_kernel_cls as mxfp4_backend_to_kernel_cls,
@@ -48,6 +53,7 @@ from vllm.model_executor.layers.fused_moe.oracle.nvfp4 import (
     NvFp4MoeBackend,
     convert_to_nvfp4_moe_kernel_format,
     map_nvfp4_backend,
+    select_nvfp4_moe_backend,
 )
 from vllm.model_executor.layers.fused_moe.oracle.nvfp4 import (
     backend_to_kernel_cls as nvfp4_backend_to_kernel_cls,
@@ -128,6 +134,10 @@ def test_backend_specs_preserve_weight_format_contracts():
     assert cutedsl.kernel == "cutedsl"
     assert cutedsl.weight_formats == frozenset({"nvfp4", "mxfp4"})
 
+    w4a16 = fi_ep.flashinfer_moe_ep_backend_spec(FLASHINFER_MOE_EP_CUTEDSL_W4A16)
+    assert w4a16.kernel == "cutedsl"
+    assert w4a16.weight_formats == frozenset({"nvfp4", "mxfp4"})
+
     deep_gemm = fi_ep.flashinfer_moe_ep_backend_spec(FLASHINFER_MOE_EP_DEEP_GEMM)
     assert deep_gemm.kernel == "deep_gemm"
     assert deep_gemm.weight_formats == frozenset({"mxfp4"})
@@ -150,6 +160,7 @@ def _megakernel_moe(moe_backend: str, **overrides) -> SimpleNamespace:
         skip_final_all_reduce=False,
         in_dtype=torch.bfloat16,
         has_bias=False,
+        swiglu_limit=None,
         swiglu_alpha=None,
         swiglu_beta=None,
     )
@@ -174,8 +185,10 @@ def megakernel_host(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     config = SimpleNamespace(
         weight_transfer_config=None,
         parallel_config=SimpleNamespace(enable_dbo=False, enable_eplb=False),
+        model_config=SimpleNamespace(quantization_config=None),
     )
     monkeypatch.setattr(fi_ep, "get_current_vllm_config", lambda: config)
+    monkeypatch.setattr(mxfp4_oracle, "get_current_vllm_config", lambda: config)
     monkeypatch.setattr(
         FlashInferMoeEpExperts, "_supports_current_device", staticmethod(lambda: True)
     )
@@ -192,12 +205,18 @@ def test_megakernel_requires_expert_parallel(megakernel_host):
     assert not supported and "parallel config" in reason
 
 
-def test_megakernel_reports_its_own_constraints(megakernel_host):
+def test_megakernel_reports_its_own_constraints(
+    monkeypatch: pytest.MonkeyPatch, megakernel_host
+):
     """Constraints the framework does not know about surface as reasons."""
+    flashinfer = ModuleType("flashinfer")
+    flashinfer.moe_ep = SimpleNamespace()  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "flashinfer", flashinfer)
+
     _, reason = _is_supported(
-        _megakernel_moe(FLASHINFER_MOE_EP_CUTEDSL), kNvfp4Static, None
+        _megakernel_moe(FLASHINFER_MOE_EP_CUTEDSL_W4A16), kNvfp4Static, None
     )
-    assert "A16 activations" in reason
+    assert "does not provide W4A16" in reason
 
     deep_gemm = _megakernel_moe(
         FLASHINFER_MOE_EP_DEEP_GEMM, routing_method=RoutingMethodType.Renormalize
@@ -212,6 +231,27 @@ def test_megakernel_reports_its_own_constraints(megakernel_host):
     assert reason.endswith("EPLB")
 
 
+def test_w4a16_is_explicit_and_overrides_checkpoint_activation_scheme(
+    monkeypatch: pytest.MonkeyPatch, megakernel_host
+):
+    flashinfer = ModuleType("flashinfer")
+    flashinfer.moe_ep = SimpleNamespace(  # type: ignore[attr-defined]
+        Sm100_Bf16_Nvfp4_Bf16_Cutedsl_MegaMoeConfig=object
+    )
+    monkeypatch.setitem(sys.modules, "flashinfer", flashinfer)
+
+    legacy = _megakernel_moe(FLASHINFER_MOE_EP_CUTEDSL)
+    supported, reason = _is_supported(legacy, kNvfp4Static, None)
+    assert not supported and "A16 activations" in reason
+
+    w4a16 = _megakernel_moe(FLASHINFER_MOE_EP_CUTEDSL_W4A16)
+    assert _is_supported(w4a16, kNvfp4Static, kNvfp4Dynamic) == (True, "")
+    assert _is_supported(w4a16, kNvfp4Static, None) == (True, "")
+    backend, experts_cls = select_nvfp4_moe_backend(w4a16, kNvfp4Static, kNvfp4Dynamic)
+    assert backend is NvFp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL_W4A16
+    assert experts_cls is FlashInferMoeEpExperts
+
+
 def test_megakernels_are_oracle_backends():
     """Quant methods reach the megakernel through the NVFP4/MXFP4 oracles."""
     nvfp4 = map_nvfp4_backend(FLASHINFER_MOE_EP_CUTEDSL)
@@ -220,6 +260,9 @@ def test_megakernels_are_oracle_backends():
 
     assert map_mxfp4_backend(FLASHINFER_MOE_EP_DEEP_GEMM) == [
         Mxfp4MoeBackend.FLASHINFER_MOE_EP_DEEP_GEMM
+    ]
+    assert map_mxfp4_backend(FLASHINFER_MOE_EP_CUTEDSL_W4A16) == [
+        Mxfp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL_W4A16
     ]
     for backend in FLASHINFER_MOE_EP_MXFP4_BACKENDS:
         assert mxfp4_backend_to_kernel_cls(backend) == [FlashInferMoeEpExperts]
@@ -232,6 +275,58 @@ def test_megakernels_are_oracle_backends():
         Mxfp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL, w1_scale=None, w2_scale=None
     )
     assert quant_config is not None and quant_config.use_nvfp4_w4a4
+
+    w4a16_quant_config = make_mxfp4_moe_quant_config(
+        Mxfp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL_W4A16,
+        w1_scale=None,
+        w2_scale=None,
+    )
+    assert w4a16_quant_config is not None
+    assert w4a16_quant_config.use_mxfp4_w4a16
+
+
+def test_mxfp4_checkpoint_selects_explicit_w4a16_megakernel(
+    monkeypatch: pytest.MonkeyPatch, megakernel_host
+):
+    flashinfer = ModuleType("flashinfer")
+    flashinfer.moe_ep = SimpleNamespace(  # type: ignore[attr-defined]
+        Sm100_Bf16_Nvfp4_Bf16_Cutedsl_MegaMoeConfig=object
+    )
+    monkeypatch.setitem(sys.modules, "flashinfer", flashinfer)
+
+    moe = _megakernel_moe(FLASHINFER_MOE_EP_CUTEDSL_W4A16)
+    backend, experts_cls = select_mxfp4_moe_backend(moe)
+
+    assert backend is Mxfp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL_W4A16
+    assert experts_cls is FlashInferMoeEpExperts
+
+
+def test_mxfp4_checkpoint_w4a16_conversion_dequantizes_to_bf16():
+    # E8M0 byte 127 is 1.0. Each packed 0x21 byte decodes to [0.5, 1.0].
+    w13 = torch.full((1, 64, 16), 0x21, dtype=torch.uint8)
+    w2 = torch.full((1, 32, 16), 0x21, dtype=torch.uint8)
+    w13_scale = torch.full((1, 64, 1), 127, dtype=torch.uint8)
+    w2_scale = torch.full((1, 32, 1), 127, dtype=torch.uint8)
+
+    converted = convert_weight_to_mxfp4_moe_kernel_format(
+        Mxfp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL_W4A16,
+        SimpleNamespace(),
+        w13,
+        w2,
+        w13_scale,
+        w2_scale,
+    )
+    converted_w13, converted_w2, converted_s13, converted_s2, _, _ = converted
+
+    assert converted_w13.dtype == torch.bfloat16
+    assert converted_w2.dtype == torch.bfloat16
+    assert converted_w13.shape == (1, 64, 32)
+    assert converted_w2.shape == (1, 32, 32)
+    assert torch.all(converted_w13[..., ::2] == 0.5)
+    assert torch.all(converted_w13[..., 1::2] == 1.0)
+    assert torch.all(converted_w2[..., ::2] == 0.5)
+    assert torch.all(converted_w2[..., 1::2] == 1.0)
+    assert converted_s13 is None and converted_s2 is None
 
 
 def test_megakernel_is_a_modular_kernel_with_pass_through_stages():

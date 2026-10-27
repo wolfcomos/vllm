@@ -52,6 +52,7 @@ class NvFp4MoeBackend(Enum):
     HUMMING = "HUMMING"
     EMULATION = "EMULATION"
     FLASHINFER_MOE_EP_CUTEDSL = "FLASHINFER_MOE_EP_CUTEDSL"
+    FLASHINFER_MOE_EP_CUTEDSL_W4A16 = "FLASHINFER_MOE_EP_CUTEDSL_W4A16"
 
 
 FLASHINFER_NVFP4_MOE_BACKENDS = [
@@ -150,7 +151,10 @@ def backend_to_kernel_cls(
         )
 
         return [Nvfp4QuantizationEmulationTritonExperts]
-    elif backend == NvFp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL:
+    elif backend in (
+        NvFp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL,
+        NvFp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL_W4A16,
+    ):
         from vllm.model_executor.layers.fused_moe.experts.flashinfer_moe_ep import (  # noqa: E501
             FlashInferMoeEpExperts,
         )
@@ -169,6 +173,9 @@ def map_nvfp4_backend(runner_backend: MoEBackend) -> NvFp4MoeBackend:
         "flashinfer_cutlass": NvFp4MoeBackend.FLASHINFER_CUTLASS,
         "flashinfer_cutedsl": NvFp4MoeBackend.FLASHINFER_CUTEDSL,
         "flashinfer_moe_ep_cutedsl": NvFp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL,
+        "flashinfer_moe_ep_cutedsl_w4a16": (
+            NvFp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL_W4A16
+        ),
         "flashinfer_b12x": NvFp4MoeBackend.FLASHINFER_B12X,
         "marlin": NvFp4MoeBackend.MARLIN,
         "humming": NvFp4MoeBackend.HUMMING,
@@ -184,7 +191,8 @@ def map_nvfp4_backend(runner_backend: MoEBackend) -> NvFp4MoeBackend:
 
 def _use_a16(backend: NvFp4MoeBackend, checkpoint_uses_a16: bool) -> bool:
     return checkpoint_uses_a16 or (
-        backend == NvFp4MoeBackend.B12X and envs.VLLM_B12X_MOE_FP4_FORCE_A16
+        backend == NvFp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL_W4A16
+        or (backend == NvFp4MoeBackend.B12X and envs.VLLM_B12X_MOE_FP4_FORCE_A16)
     )
 
 
@@ -218,6 +226,7 @@ def select_nvfp4_moe_backend(
         NvFp4MoeBackend.FLASHINFER_CUTLASS,
         NvFp4MoeBackend.FLASHINFER_CUTEDSL,
         NvFp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL,
+        NvFp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL_W4A16,
         NvFp4MoeBackend.VLLM_CUTLASS,
         NvFp4MoeBackend.MARLIN,
         NvFp4MoeBackend.EMULATION,
@@ -505,7 +514,10 @@ def convert_to_nvfp4_moe_kernel_format(
         # for other experts - other selection strategies may be used.
         a13_scale = 1.0 / a13_scale.max().to(torch.float32)
         a2_scale = 1.0 / a2_scale.max().to(torch.float32)
-    elif nvfp4_backend == NvFp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL:
+    elif nvfp4_backend in (
+        NvFp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL,
+        NvFp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL_W4A16,
+    ):
         # The megakernel transforms the checkpoint tensors itself at init.
         pass
     else:
@@ -552,7 +564,12 @@ def make_nvfp4_moe_quant_config(
             gemm1_clamp_limit=swiglu_limit,
         )
     elif backend == NvFp4MoeBackend.MARLIN or (
-        backend == NvFp4MoeBackend.B12X and use_a16
+        backend
+        in (
+            NvFp4MoeBackend.B12X,
+            NvFp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL_W4A16,
+        )
+        and use_a16
     ):
         return nvfp4_w4a16_moe_quant_config(
             g1_alphas=w13_scale_2,

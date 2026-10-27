@@ -30,6 +30,37 @@ vLLM provides multiple communication backends for EP. Use `--all2all-backend` to
 | `passthrough` | Any | Internal, not accepted on the CLI: bound automatically for MoE backends that dispatch and combine themselves, so no all-to-all runs in the framework | `--moe-backend flashinfer_moe_ep_*` (FlashInfer MoE-EP megakernels) |
 | `flashinfer_nvlink_two_sided` | MNNVL systems | FlashInfer's two-sided A2A strategy for multi-node NVLink | Systems with NVLink across nodes |
 
+### FlashInfer MegaMoE with BF16 activations
+
+Select `--moe-backend flashinfer_moe_ep_cutedsl_w4a16` to run supported NVFP4
+or MXFP4 MoE checkpoints with BF16 activations and FlashInfer's CuTeDSL
+MegaMoE kernel. This backend is opt-in. It fuses expert dispatch, computation,
+and combine, so vLLM automatically selects the internal `passthrough`
+communication backend.
+
+The backend requires:
+
+- NVIDIA Blackwell SM100 or SM103 GPUs, BF16 model dtype, and expert parallelism.
+- A working NVSHMEM runtime across the EP group and a FlashInfer installation
+  with `flashinfer.moe_ep` support.
+- FlashInfer's `Sm100_Bf16_Nvfp4_Bf16_Cutedsl_MegaMoeConfig` API. An installation
+  that lacks this API cannot run the W4A16 backend.
+
+For example, adapt the checkpoint path and parallel sizes to your deployment:
+
+```bash
+vllm serve /path/to/nvfp4-or-mxfp4-checkpoint \
+    --dtype bfloat16 \
+    --tensor-parallel-size 1 \
+    --data-parallel-size 2 \
+    --enable-expert-parallel \
+    --moe-backend flashinfer_moe_ep_cutedsl_w4a16
+```
+
+For MXFP4 checkpoints, vLLM dequantizes the checkpoint weights and FlashInfer
+converts them to the kernel's NVFP4 weight format at load time. W4A16 selects
+BF16 activation computation; it does not imply native MXFP4 weight execution.
+
 ## Single Node Deployment
 
 ### Configuration

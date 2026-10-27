@@ -10,6 +10,7 @@ from vllm import envs
 from vllm.config import get_current_vllm_config
 from vllm.config.kernel import (
     FLASHINFER_MOE_EP_CUTEDSL,
+    FLASHINFER_MOE_EP_CUTEDSL_W4A16,
     FLASHINFER_MOE_EP_DEEP_GEMM,
     MoEBackend,
 )
@@ -170,6 +171,7 @@ class Mxfp4MoeBackend(Enum):
     HUMMING = "HUMMING"
     # FlashInfer MoE-EP megakernels: routing outside, dispatch/GEMMs/combine fused.
     FLASHINFER_MOE_EP_CUTEDSL = "FLASHINFER_MOE_EP_CUTEDSL"
+    FLASHINFER_MOE_EP_CUTEDSL_W4A16 = "FLASHINFER_MOE_EP_CUTEDSL_W4A16"
     FLASHINFER_MOE_EP_DEEP_GEMM = "FLASHINFER_MOE_EP_DEEP_GEMM"
 
 
@@ -191,10 +193,12 @@ B12X_BACKENDS = (
     Mxfp4MoeBackend.B12X_MXFP4_BF16,
 )
 
-# Megakernels consume the checkpoint's MXFP4 tensors through the shared
-# FlashInfer MoE-EP adapter; vLLM does not convert their weight layout.
+# Megakernels consume checkpoint MXFP4 tensors through the shared FlashInfer
+# MoE-EP adapter. CuTeDSL variants dequantize to BF16 for FlashInfer's NVFP4
+# preprocessing; DeepGEMM keeps the checkpoint representation.
 FLASHINFER_MOE_EP_MXFP4_BACKENDS = (
     Mxfp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL,
+    Mxfp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL_W4A16,
     Mxfp4MoeBackend.FLASHINFER_MOE_EP_DEEP_GEMM,
 )
 
@@ -369,6 +373,9 @@ def map_mxfp4_backend(runner_backend: MoEBackend) -> list[Mxfp4MoeBackend]:
         ],
         "flashinfer_cutlass_afp8": [Mxfp4MoeBackend.FLASHINFER_CUTLASS_MXFP4_MXFP8],
         "flashinfer_moe_ep_cutedsl": [Mxfp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL],
+        "flashinfer_moe_ep_cutedsl_w4a16": [
+            Mxfp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL_W4A16
+        ],
         "flashinfer_moe_ep_mega_deep_gemm": [
             Mxfp4MoeBackend.FLASHINFER_MOE_EP_DEEP_GEMM
         ],
@@ -2034,11 +2041,17 @@ def convert_weight_to_mxfp4_moe_kernel_format(
             mxfp4_moe_ep_weights,
         )
 
-        # DeepGEMM consumes MXFP4 directly; CuTeDSL gets bf16 and requantizes.
+        # DeepGEMM consumes MXFP4 directly; CuTeDSL gets BF16 and requantizes
+        # weights to NVFP4 while preserving the selected activation precision.
+        flashinfer_backend = {
+            Mxfp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL: (FLASHINFER_MOE_EP_CUTEDSL),
+            Mxfp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL_W4A16: (
+                FLASHINFER_MOE_EP_CUTEDSL_W4A16
+            ),
+            Mxfp4MoeBackend.FLASHINFER_MOE_EP_DEEP_GEMM: (FLASHINFER_MOE_EP_DEEP_GEMM),
+        }[mxfp4_backend]
         weights = mxfp4_moe_ep_weights(
-            FLASHINFER_MOE_EP_CUTEDSL
-            if mxfp4_backend == Mxfp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL
-            else FLASHINFER_MOE_EP_DEEP_GEMM,
+            flashinfer_backend,
             w13_weight,
             w2_weight,
             w13_weight_scale,
@@ -2099,6 +2112,11 @@ def make_mxfp4_moe_quant_config(
     layer: "RoutedExperts | None" = None,
 ) -> FusedMoEQuantConfig | None:
     """Create a FusedMoEQuantConfig for the given MXFP4 backend."""
+    if mxfp4_backend == Mxfp4MoeBackend.FLASHINFER_MOE_EP_CUTEDSL_W4A16:
+        # The checkpoint weights were dequantized to BF16 above. FlashInfer
+        # requantizes them to NVFP4 during preprocessing, while activations stay
+        # in BF16 (quant_dtype=None selects the W4A16 megakernel adapter).
+        return FusedMoEQuantConfig.make(None, weight_dtype="mxfp4")
     if mxfp4_backend in FLASHINFER_MOE_EP_MXFP4_BACKENDS:
         # The megakernel quantizes activations itself and owns its scales.
         return FusedMoEQuantConfig.make("nvfp4", weight_dtype="mxfp4")

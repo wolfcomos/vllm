@@ -25,7 +25,11 @@ import torch
 import vllm.model_executor.layers.fused_moe.modular_kernel as mk
 from tests.distributed.eplb_utils import distributed_run, set_env_vars_and_device
 from vllm.config import VllmConfig, set_current_vllm_config
-from vllm.config.kernel import FLASHINFER_MOE_EP_CUTEDSL, FLASHINFER_MOE_EP_DEEP_GEMM
+from vllm.config.kernel import (
+    FLASHINFER_MOE_EP_CUTEDSL,
+    FLASHINFER_MOE_EP_CUTEDSL_W4A16,
+    FLASHINFER_MOE_EP_DEEP_GEMM,
+)
 from vllm.distributed.parallel_state import ensure_model_parallel_initialized
 from vllm.model_executor.layers.fused_moe import flashinfer_moe_ep as fi_ep
 from vllm.model_executor.layers.fused_moe.activation import MoEActivation
@@ -42,7 +46,10 @@ from vllm.model_executor.layers.fused_moe.flashinfer_moe_ep import (
     FlashInferMoeEpWeights,
     apply_topk_in_fc1,
 )
-from vllm.model_executor.layers.quantization.utils.quant_utils import kMxfp4Static
+from vllm.model_executor.layers.quantization.utils.quant_utils import (
+    kMxfp4Static,
+    kNvfp4Static,
+)
 from vllm.platforms import current_platform
 from vllm.utils.import_utils import has_deep_gemm
 
@@ -66,7 +73,11 @@ GEOMETRIES = (
     Geometry("mistral-small-4", 4096, 2048, 128, 4),
     Geometry("mistral-large-3", 7168, 4096, 128, 4),
 )
-BACKENDS = (FLASHINFER_MOE_EP_CUTEDSL, FLASHINFER_MOE_EP_DEEP_GEMM)
+BACKENDS = (
+    FLASHINFER_MOE_EP_CUTEDSL,
+    FLASHINFER_MOE_EP_CUTEDSL_W4A16,
+    FLASHINFER_MOE_EP_DEEP_GEMM,
+)
 
 NUM_TOKENS_PER_RANK = 4
 MAX_TOKENS_PER_RANK = 128
@@ -257,10 +268,13 @@ def _init_warmup_forward(
         rank = torch.distributed.get_rank()
         device = torch.device(f"cuda:{rank}")
         moe = _moe_config(vllm_config, geometry, world_size, device, backend)
+        weight_key = (
+            kNvfp4Static if backend == FLASHINFER_MOE_EP_CUTEDSL_W4A16 else kMxfp4Static
+        )
         supported, reason = FlashInferMoeEpExperts.is_supported_config(
             FlashInferMoeEpExperts,
             moe,
-            kMxfp4Static,
+            weight_key,
             None,
             mk.FusedMoEActivationFormat.Standard,
         )
@@ -270,6 +284,7 @@ def _init_warmup_forward(
             moe,
             _local_expert_weights(geometry, rank, moe.num_local_experts, device),
             apply_topk_in_fc1=apply_topk_in_fc1(moe),
+            use_w4a16=backend == FLASHINFER_MOE_EP_CUTEDSL_W4A16,
         )
         try:
             adapter.warmup()
@@ -287,7 +302,10 @@ def _init_warmup_forward(
                 f"{[torch.nonzero(row).flatten().tolist() for row in output]}"
             )
 
-            if backend == FLASHINFER_MOE_EP_CUTEDSL:
+            if backend in (
+                FLASHINFER_MOE_EP_CUTEDSL,
+                FLASHINFER_MOE_EP_CUTEDSL_W4A16,
+            ):
                 _check_expert_views_alias_kernel_memory(
                     adapter, geometry, rank, moe.num_local_experts, device
                 )
@@ -300,7 +318,9 @@ def _init_warmup_forward(
     reason="The FlashInfer MoE-EP megakernels require SM100",
 )
 @pytest.mark.parametrize("geometry", GEOMETRIES, ids=[g.name for g in GEOMETRIES])
-@pytest.mark.parametrize("backend", BACKENDS, ids=("cutedsl", "deep_gemm"))
+@pytest.mark.parametrize(
+    "backend", BACKENDS, ids=("cutedsl", "cutedsl_w4a16", "deep_gemm")
+)
 @pytest.mark.parametrize("world_size", [2, 4])
 def test_init_warmup_forward_is_exact_on_grid_inputs(
     world_size: int, backend: str, geometry: Geometry
@@ -313,7 +333,9 @@ def test_init_warmup_forward_is_exact_on_grid_inputs(
     distributed_run(_init_warmup_forward, world_size, geometry, backend)
 
 
-@pytest.mark.parametrize("backend", BACKENDS, ids=("cutedsl", "deep_gemm"))
+@pytest.mark.parametrize(
+    "backend", BACKENDS, ids=("cutedsl", "cutedsl_w4a16", "deep_gemm")
+)
 def test_adapter_kwargs_match_installed_flashinfer(
     monkeypatch: pytest.MonkeyPatch, backend: str
 ):
@@ -358,12 +380,14 @@ def test_adapter_kwargs_match_installed_flashinfer(
         moe,
         FlashInferMoeEpWeights(w13=weight, w2=weight),
         apply_topk_in_fc1=apply_topk_in_fc1(moe),
+        use_w4a16=backend == FLASHINFER_MOE_EP_CUTEDSL_W4A16,
     )
 
     ((_, _, _, mega_config),) = layer_args
-    expected = (
-        moe_ep.Nvfp4CutedslMegaMoeConfig
-        if backend == FLASHINFER_MOE_EP_CUTEDSL
-        else moe_ep.DeepGemmMegaMoeConfig
-    )
+    if backend == FLASHINFER_MOE_EP_CUTEDSL_W4A16:
+        expected = moe_ep.Sm100_Bf16_Nvfp4_Bf16_Cutedsl_MegaMoeConfig
+    elif backend == FLASHINFER_MOE_EP_CUTEDSL:
+        expected = moe_ep.Nvfp4CutedslMegaMoeConfig
+    else:
+        expected = moe_ep.DeepGemmMegaMoeConfig
     assert isinstance(mega_config.megakernel, expected)

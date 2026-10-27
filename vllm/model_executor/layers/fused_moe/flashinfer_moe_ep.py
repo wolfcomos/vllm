@@ -14,6 +14,7 @@ from vllm.config import get_current_vllm_config
 from vllm.config.kernel import (
     FLASHINFER_MOE_EP_BACKENDS,
     FLASHINFER_MOE_EP_CUTEDSL,
+    FLASHINFER_MOE_EP_CUTEDSL_W4A16,
     FLASHINFER_MOE_EP_DEEP_GEMM,
 )
 from vllm.distributed import get_ep_group
@@ -94,6 +95,10 @@ _BACKEND_SPECS = {
         kernel="cutedsl",
         weight_formats=frozenset({"nvfp4", "mxfp4"}),
     ),
+    FLASHINFER_MOE_EP_CUTEDSL_W4A16: FlashInferMoeEpBackendSpec(
+        kernel="cutedsl",
+        weight_formats=frozenset({"nvfp4", "mxfp4"}),
+    ),
     FLASHINFER_MOE_EP_DEEP_GEMM: FlashInferMoeEpBackendSpec(
         kernel="deep_gemm",
         weight_formats=frozenset({"mxfp4"}),
@@ -126,8 +131,8 @@ def flashinfer_moe_ep_unsupported_reasons(
 ) -> tuple[str, ...]:
     """Deployment constraints of the megakernel beyond the framework's checks.
 
-    ``activation_key`` is ``None`` for MXFP4 checkpoints (the kernel quantizes
-    bf16 activations itself) but marks a W4A16 recipe for NVFP4 weights.
+    ``activation_key`` is ``None`` for MXFP4 checkpoints. The explicit W4A16
+    backend keeps those activations in BF16 after checkpoint weight conversion.
     """
     spec = flashinfer_moe_ep_backend_spec(moe.moe_backend)
     unsupported: list[str] = []
@@ -136,8 +141,19 @@ def flashinfer_moe_ep_unsupported_reasons(
         unsupported.append(f"weight scheme {weight_key}")
     elif weight_format not in spec.weight_formats:
         unsupported.append(f"{weight_format.upper()} weights")
-    if weight_key == kNvfp4Static and activation_key is None:
+    use_w4a16 = moe.moe_backend == FLASHINFER_MOE_EP_CUTEDSL_W4A16
+    if not use_w4a16 and weight_key == kNvfp4Static and activation_key is None:
+        # Preserve the existing backend contract: W4A16 is an explicit opt-in.
         unsupported.append("A16 activations with NVFP4 weights")
+    if use_w4a16:
+        try:
+            from flashinfer import moe_ep
+
+            has_w4a16 = hasattr(moe_ep, "Sm100_Bf16_Nvfp4_Bf16_Cutedsl_MegaMoeConfig")
+        except ImportError:
+            has_w4a16 = False
+        if not has_w4a16:
+            unsupported.append("installed FlashInfer does not provide W4A16 MegaMoE")
     if moe.skip_final_all_reduce:
         unsupported.append("skip_final_all_reduce")
     if moe.in_dtype != torch.bfloat16:
@@ -240,7 +256,7 @@ def mxfp4_moe_ep_weights(
 
 
 class _FlashInferMoeEpApi:
-    def __init__(self) -> None:
+    def __init__(self, *, use_w4a16: bool) -> None:
         try:
             from flashinfer.moe_ep import (
                 BootstrapConfig,
@@ -266,10 +282,17 @@ class _FlashInferMoeEpApi:
         self.MoEEpTensors = MoEEpTensors
         self.MoEWeightPack = MoEWeightPack
         self.Nvfp4CutedslMegaMoeConfig = Nvfp4CutedslMegaMoeConfig
+        self.Bf16Nvfp4MegaMoeConfig = None
+        if use_w4a16:
+            from flashinfer.moe_ep import (
+                Sm100_Bf16_Nvfp4_Bf16_Cutedsl_MegaMoeConfig,
+            )
+
+            self.Bf16Nvfp4MegaMoeConfig = Sm100_Bf16_Nvfp4_Bf16_Cutedsl_MegaMoeConfig
 
 
-def _load_flashinfer_moe_ep_api() -> _FlashInferMoeEpApi:
-    return _FlashInferMoeEpApi()
+def _load_flashinfer_moe_ep_api(*, use_w4a16: bool = False) -> _FlashInferMoeEpApi:
+    return _FlashInferMoeEpApi(use_w4a16=use_w4a16)
 
 
 def _expose_deep_gemm_to_flashinfer() -> None:
@@ -289,11 +312,14 @@ class FlashInferMoeEp:
         epilogue: FlashInferMoeEpEpilogue | None = None,
         *,
         apply_topk_in_fc1: bool,
+        use_w4a16: bool = False,
     ) -> None:
         spec = flashinfer_moe_ep_backend_spec(moe.moe_backend)
+        if use_w4a16 and spec.kernel != "cutedsl":
+            raise ValueError("W4A16 override requires flashinfer_moe_ep_cutedsl")
         if spec.kernel == "deep_gemm":
             _expose_deep_gemm_to_flashinfer()
-        api = _load_flashinfer_moe_ep_api()
+        api = _load_flashinfer_moe_ep_api(use_w4a16=use_w4a16)
         if epilogue is None:
             epilogue = FlashInferMoeEpEpilogue()
         ep_group = get_ep_group()
@@ -314,7 +340,22 @@ class FlashInferMoeEp:
             w13_scale=weights.w13_scale,
             w2_scale=weights.w2_scale,
         )
-        if spec.kernel == "cutedsl":
+        if use_w4a16:
+            if epilogue.input_norm_const != 1.0:
+                raise ValueError("W4A16 requires unscaled BF16 input activations")
+            assert api.Bf16Nvfp4MegaMoeConfig is not None
+            megakernel = api.Bf16Nvfp4MegaMoeConfig(
+                intermediate_size=moe.intermediate_size,
+                top_k=moe.experts_per_token,
+                gate_up_clamp=moe.swiglu_limit,
+                apply_topk_in_fc1=apply_topk_in_fc1,
+                enable_in_kernel_fc2_reduce=False,
+                fc1_alpha=None,
+                fc2_alpha=None,
+                fc1_norm_const=None,
+                knobs=None,
+            )
+        elif spec.kernel == "cutedsl":
             # In-kernel fc2 reduce keeps its default (off); FlashInfer 0.7.1rc1
             # renamed in_kernel_fc2_reduce to enable_in_kernel_fc2_reduce.
             megakernel = api.Nvfp4CutedslMegaMoeConfig(
@@ -339,7 +380,7 @@ class FlashInferMoeEp:
             )
         backend = api.MegaConfig(
             megakernel=megakernel,
-            quantize_input=True,
+            quantize_input=not use_w4a16,
             preprocess_weights=True,
         )
 
