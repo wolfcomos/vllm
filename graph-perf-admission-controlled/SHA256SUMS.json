@@ -1,0 +1,9 @@
+{
+  "PROTOCOL.md": "34da0fcc74511bd5182990337d12876ee3bf74e31623fc2d0c3e5f571243d2f8",
+  "run_admission_controlled.py": "a09b112c05432becf5ffddefca339010273f69897c08cab70605eea11da43423",
+  "compare_admission_controlled.py": "904d8cb99d0b4f99127c159a82f171bb4ea79db4b7def891862a444dee1324f8",
+  "cpu_check_driver.py": "a488bdb54e7108ce788d7dd0f7902b39780379c026bff33bb5f4ce3ea40257b3",
+  "cpu-static-checks.json": "a6f2f95a81f8d6cae1ab395e70c41f7b572cbf802f4fb69ae7f83c01320cc134",
+  "cpu_check_comparator.py": "50fc4572c5b57581f8a1a7a48c2b82e1e3fb12ed662f1de2a2ba66d671b72a4a",
+  "comparator-cpu-checks.json": "6e8dbf6dd22e88d19bf0df13008fa8f2ca1a72c6223eed55ca2b46e1c058f03b"
+}

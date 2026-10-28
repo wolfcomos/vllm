@@ -1,0 +1,124 @@
+{
+  "status": "integrity_passed_performance_failed",
+  "protocol": "admission-controlled-v2",
+  "source_and_api_git_bytes_verified": true,
+  "all_five_source_runtime_ordered_gpu_input_tactic_controls_verified": true,
+  "raw_measured_arrays_checked": 70,
+  "raw_warmup_arrays_checked": 30,
+  "measured_output_sequences_checked": 1680,
+  "warmup_output_sequences_checked": 720,
+  "measured_output_tokens_checked": 430080,
+  "warmup_output_tokens_checked": 184320,
+  "all_within_arm_measured_outputs_exact": true,
+  "baseline_default_a_default_b_measured_outputs_exact": true,
+  "fp16_a_fp16_b_measured_outputs_exact": true,
+  "all_warmups_also_match_measured_reference": true,
+  "actual_tactic_cache_files_checked": 20,
+  "configurations_per_cache": 160,
+  "tactic_files_byte_identical_to_v1_seed": true,
+  "all_recorded_tuner_fields_unchanged": true,
+  "cache_misses": 0,
+  "new_successful_profiles": 0,
+  "all_timing_arms_exited_zero_and_shutdown_completed": true,
+  "local_frozen_comparator_byte_identical_to_remote": true,
+  "local_comparator_python": "3.12.14",
+  "canonical_comparison_sha256": "45b8333ca2813db1a6c1b7fb5946bce3cc4f5c094cf5a7fce2c26e53ae062e35",
+  "local_comparator_sha256": "45b8333ca2813db1a6c1b7fb5946bce3cc4f5c094cf5a7fce2c26e53ae062e35",
+  "projector_sha256": "93552726e90c90e803273959e9f33497dc03bb578268ca7d7550bc149f3ef147",
+  "public_projection_sha256": "8dc274f87e09ef4863df5f850410c3ea2fcdd4cff0c777874a553cfb7b263f3b",
+  "public_projection_and_comparison_privacy_scan_passed": true,
+  "medians_seconds": {
+    "baseline": {
+      "8": 2.2509340348187834,
+      "40": 6.196644418872893
+    },
+    "default-a": {
+      "8": 2.2349382292013615,
+      "40": 6.115663733100519
+    },
+    "fp16-a": {
+      "8": 2.206170721910894,
+      "40": 6.083021019119769
+    },
+    "fp16-b": {
+      "8": 2.10016009490937,
+      "40": 5.637360113207251
+    },
+    "default-b": {
+      "8": 2.152193268062547,
+      "40": 5.794458012096584
+    }
+  },
+  "cross_process_and_cross_mode_latency_changes": [
+    {
+      "batch": 8,
+      "default_b_vs_default_a_latency_change_percent": -3.702337722702209,
+      "fp16_b_vs_fp16_a_latency_change_percent": -4.805186921785543,
+      "fp16_a_vs_default_a_latency_change_percent": -1.2871723663140155,
+      "fp16_a_vs_default_b_latency_change_percent": 2.5080207548896727,
+      "fp16_b_vs_default_a_latency_change_percent": -6.030508249892597,
+      "fp16_b_vs_default_b_latency_change_percent": -2.4176812522054947
+    },
+    {
+      "batch": 40,
+      "default_b_vs_default_a_latency_change_percent": -5.252180875567691,
+      "fp16_b_vs_fp16_a_latency_change_percent": -7.326308827665484,
+      "fp16_a_vs_default_a_latency_change_percent": -0.5337558669891052,
+      "fp16_a_vs_default_b_latency_change_percent": 4.979982707973329,
+      "fp16_b_vs_default_a_latency_change_percent": -7.8209600914531885,
+      "fp16_b_vs_default_b_latency_change_percent": -2.7111750324426143
+    }
+  ],
+  "failed_performance_gates": [
+    {
+      "gate": "default_anchor_drift",
+      "batch": 8,
+      "left": "default-a",
+      "right": "default-b",
+      "median_latency_ratio": 0.9629766227729779,
+      "absolute_relative_difference": 0.03702337722702209,
+      "limit": 0.02,
+      "passed": false
+    },
+    {
+      "gate": "default_anchor_drift",
+      "batch": 40,
+      "left": "default-a",
+      "right": "default-b",
+      "median_latency_ratio": 0.9474781912443231,
+      "absolute_relative_difference": 0.05252180875567691,
+      "limit": 0.02,
+      "passed": false
+    },
+    {
+      "gate": "B40_at_least_3_percent_lower_latency",
+      "fp16": "fp16-a",
+      "default": "default-a",
+      "batch": 40,
+      "median_latency_ratio": 0.994662441330109,
+      "limit": 0.97,
+      "passed": false
+    },
+    {
+      "gate": "B40_at_least_3_percent_lower_latency",
+      "fp16": "fp16-a",
+      "default": "default-b",
+      "batch": 40,
+      "median_latency_ratio": 1.0497998270797333,
+      "limit": 0.97,
+      "passed": false
+    },
+    {
+      "gate": "B40_at_least_3_percent_lower_latency",
+      "fp16": "fp16-b",
+      "default": "default-b",
+      "batch": 40,
+      "median_latency_ratio": 0.9728882496755739,
+      "limit": 0.97,
+      "passed": false
+    }
+  ],
+  "native_graph_diagnostic": "not_run_per_frozen_gate",
+  "performance_verdict": "no_validated_end_to_end_speedup",
+  "interpretation": "All measured outputs repeat within an arm and satisfy default/baseline and FP16 A/B parity. The default anchors and identical FP16 processes show unexplained cross-process latency drift. Five of eighteen predeclared performance checks fail: both default-anchor drift checks and three B40 benefit comparisons. The separate native runtime graph diagnostic was held; worker capture/dispatch snapshots do not establish per-trial native runtime counts or hardware replay. No clock, thermal or JIT causal claim is supported. GSM8K quality is a separate eager evaluation, not timing evidence."
+}

@@ -1,0 +1,35 @@
+{
+  "candidate": {
+    "commit": "faf31b04c73400c2af770c280fb8d739a5997fcb",
+    "archive_sha256": "79f78a23491c430ea2d1216f8f86226babf896e2661bfce89d7b7640d69c3c93",
+    "source_hashes": {
+      "config/attention.py": "d24720c60d138c4f0133ad9d03c9241dc67c75558011417a01a373811a6e9644",
+      "models/minimax_m3/common/ops/sparse_attn.py": "0feeee46ce5260cd85b2764e21407682fee1e4af5a90702194d089589ad284c4",
+      "models/minimax_m3/common/sparse_attention.py": "07de76f90022ccfa4a8cd0754c0e8860f91e6b71916ceee768f107f817de63ce",
+      "models/minimax_m3/nvidia/model.py": "7a08acd01dec9bcd35e2cb46aedeaf64192f76f218300672d60db2bd215435de",
+      "models/minimax_m3/nvidia/sparse_attention_msa.py": "832e541c2001778cbf9cf3bf2298fdf3f8c27509d4b40b59cd75ee3e49118aeb"
+    }
+  },
+  "baseline": {
+    "commit": "9731f30a030c545e7f29a8a4ed96b8562be12c88",
+    "archive_sha256": "f1a56b2eee03b10ff66cd8b427982d9bc92b9965c4075caca2f6f1088c557eb4",
+    "source_hashes": {
+      "config/attention.py": "e2e5be6e30f3077bcfd4e785dc94adcc9dc6ba9d54217e5ec92a5f6a09318e15",
+      "models/minimax_m3/common/ops/sparse_attn.py": "d986e377713589d08c564730ddc277278478fb772bacdcda6ef0bbdf05718f59",
+      "models/minimax_m3/common/sparse_attention.py": "51e62c789b89d135f5fe0afd1881ea5b704d87de9d5a77b552170e548d46482b",
+      "models/minimax_m3/nvidia/model.py": "f31f18ed74f260170f1313a8aa49ef279e9564e4e45d57ef634c394fe5aa8f05",
+      "models/minimax_m3/nvidia/sparse_attention_msa.py": "82884bf06dbe6e77565b434a4789d5dbb8fbe1256dd6938db55191a9aa26cdea"
+    }
+  },
+  "old": {
+    "commit": "4df6ebd262af62f984626f7b9bb5c5179b7def28",
+    "archive_sha256": "e6f60a45148dc6eb9ef0e135fbb246a9b1f8791469c41993be98552941f2f85a",
+    "source_hashes": {
+      "config/attention.py": "ea23376385311510ce9bb40e1312e4e1dcd7282ded268cf880b9f4b45d7184d1",
+      "models/minimax_m3/common/ops/sparse_attn.py": "c68830756e08f48fe3d7e50ff0bd2ff3596752aafa115521db5c0cd756d7742f",
+      "models/minimax_m3/common/sparse_attention.py": "07de76f90022ccfa4a8cd0754c0e8860f91e6b71916ceee768f107f817de63ce",
+      "models/minimax_m3/nvidia/model.py": "7a08acd01dec9bcd35e2cb46aedeaf64192f76f218300672d60db2bd215435de",
+      "models/minimax_m3/nvidia/sparse_attention_msa.py": "832e541c2001778cbf9cf3bf2298fdf3f8c27509d4b40b59cd75ee3e49118aeb"
+    }
+  }
+}

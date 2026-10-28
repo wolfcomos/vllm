@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "checks": [
+    "command_links_baseline",
+    "command_links_default-a",
+    "command_links_fp16-a",
+    "command_links_fp16-b",
+    "command_links_default-b",
+    "diagnostic_requires_comparison_and_own_timing",
+    "full_statistics_records_non_tuning_change_without_new_gate",
+    "missing_statistics_not_zero",
+    "successful_subprocess_capture",
+    "timeout_terminates_owned_child",
+    "interruption_terminates_only_owned_child_group"
+  ],
+  "count": 11,
+  "run_sequence_sha256": "fe0b9bf1c232f432cf97bb4d1a7e7365cae6e02aa1594a5f46f85481841d7b4a",
+  "cpu_only": true
+}

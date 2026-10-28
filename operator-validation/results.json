@@ -1,0 +1,182 @@
+{
+  "audited_at_utc": "2026-10-28T20:43:48.983714+00:00",
+  "passed": true,
+  "source_hashes_match_exact_git_commits": {
+    "baseline": {
+      "commit": "9731f30a030c545e7f29a8a4ed96b8562be12c88",
+      "source_files": 5,
+      "test_files": 4
+    },
+    "candidate": {
+      "commit": "faf31b04c73400c2af770c280fb8d739a5997fcb",
+      "source_files": 5,
+      "test_files": 4
+    },
+    "old": {
+      "commit": "4df6ebd262af62f984626f7b9bb5c5179b7def28",
+      "source_files": 5,
+      "test_files": 4
+    }
+  },
+  "suites": [
+    {
+      "arm": "baseline",
+      "suite": "test_minimax_m3",
+      "tests": 171,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 46,
+      "passed": 125,
+      "seconds": 423.5701262950897
+    },
+    {
+      "arm": "baseline",
+      "suite": "test_minimax_m3_sparse_attn_fp8_scale",
+      "tests": 4,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "passed": 4,
+      "seconds": 22.89132046699524
+    },
+    {
+      "arm": "baseline",
+      "suite": "test_minimax_m3_fp8_triton_indexer",
+      "tests": 3,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "passed": 3,
+      "seconds": 18.035781383514404
+    },
+    {
+      "arm": "baseline",
+      "suite": "test_minimax_m3_msa_cutlass_sparse_decode",
+      "tests": 49,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "passed": 49,
+      "seconds": 463.61766171455383
+    },
+    {
+      "arm": "candidate",
+      "suite": "test_minimax_m3",
+      "tests": 179,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 46,
+      "passed": 133,
+      "seconds": 357.3038499355316
+    },
+    {
+      "arm": "candidate",
+      "suite": "test_minimax_m3_sparse_attn_fp8_scale",
+      "tests": 14,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "passed": 14,
+      "seconds": 28.79891014099121
+    },
+    {
+      "arm": "candidate",
+      "suite": "test_minimax_m3_fp8_triton_indexer",
+      "tests": 3,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "passed": 3,
+      "seconds": 17.235119342803955
+    },
+    {
+      "arm": "candidate",
+      "suite": "test_minimax_m3_msa_cutlass_sparse_decode",
+      "tests": 49,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "passed": 49,
+      "seconds": 449.24831771850586
+    }
+  ],
+  "totals": {
+    "baseline": {
+      "tests": 227,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 46,
+      "passed": 181
+    },
+    "candidate": {
+      "tests": 245,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 46,
+      "passed": 199
+    }
+  },
+  "original_cases_preserved": [
+    {
+      "suite": "test_minimax_m3",
+      "original_cases": 171,
+      "added_cases": 8,
+      "skip_sets_and_reasons_identical": true
+    },
+    {
+      "suite": "test_minimax_m3_sparse_attn_fp8_scale",
+      "original_cases": 4,
+      "added_cases": 10,
+      "skip_sets_and_reasons_identical": true
+    },
+    {
+      "suite": "test_minimax_m3_fp8_triton_indexer",
+      "original_cases": 3,
+      "added_cases": 0,
+      "skip_sets_and_reasons_identical": true
+    },
+    {
+      "suite": "test_minimax_m3_msa_cutlass_sparse_decode",
+      "original_cases": 49,
+      "added_cases": 0,
+      "skip_sets_and_reasons_identical": true
+    }
+  ],
+  "negative_control": {
+    "expected_failure": true,
+    "passed": 2,
+    "failed": 4,
+    "errors": 0,
+    "skipped": 0
+  },
+  "positive_control": {
+    "passed": 6,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "direct_baseline_byte_comparison": {
+    "method": "Independent byte comparison of all tensor storages in torch.save archives; no PyTorch import",
+    "all_equal": true,
+    "storages": [
+      {
+        "id": "0",
+        "bytes": 163840,
+        "equal": true,
+        "sha256": "40dfb80502a4fe25d6f132bed034c7a448847357e67d823947cbab0ef240a8ce"
+      },
+      {
+        "id": "1",
+        "bytes": 163840,
+        "equal": true,
+        "sha256": "40dfb80502a4fe25d6f132bed034c7a448847357e67d823947cbab0ef240a8ce"
+      },
+      {
+        "id": "2",
+        "bytes": 163840,
+        "equal": true,
+        "sha256": "ca02e491dde38eec1720dd8e70649c35f3b0d3a9fc6bc24138d8bbcc4ba07056"
+      }
+    ]
+  }
+}

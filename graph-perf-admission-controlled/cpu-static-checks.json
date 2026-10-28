@@ -1,0 +1,92 @@
+{
+  "status": "passed",
+  "driver_sha256": "a09b112c05432becf5ffddefca339010273f69897c08cab70605eea11da43423",
+  "checker_sha256": "a488bdb54e7108ce788d7dd0f7902b39780379c026bff33bb5f4ce3ea40257b3",
+  "checks": [
+    {
+      "case": "baseline",
+      "expected_failure": false,
+      "completed_trials": 14,
+      "shutdown": true
+    },
+    {
+      "case": "default-a",
+      "expected_failure": false,
+      "completed_trials": 14,
+      "shutdown": true
+    },
+    {
+      "case": "fp16-a",
+      "expected_failure": false,
+      "completed_trials": 14,
+      "shutdown": true
+    },
+    {
+      "case": "fp16-b",
+      "expected_failure": false,
+      "completed_trials": 14,
+      "shutdown": true
+    },
+    {
+      "case": "default-b",
+      "expected_failure": false,
+      "completed_trials": 14,
+      "shutdown": true
+    },
+    {
+      "case": "baseline-repeat-failure",
+      "expected_failure": true,
+      "completed_trials": 2,
+      "shutdown": true
+    },
+    {
+      "case": "default-cross-failure",
+      "expected_failure": true,
+      "completed_trials": 1,
+      "shutdown": true
+    },
+    {
+      "case": "fp16b-cross-failure",
+      "expected_failure": true,
+      "completed_trials": 1,
+      "shutdown": true
+    },
+    {
+      "case": "input",
+      "expected_failure": true,
+      "completed_trials": 0,
+      "shutdown": true
+    },
+    {
+      "case": "sampling",
+      "expected_failure": true,
+      "completed_trials": 0,
+      "shutdown": true
+    },
+    {
+      "case": "order",
+      "expected_failure": true,
+      "completed_trials": 0,
+      "shutdown": true
+    },
+    {
+      "case": "wake",
+      "expected_failure": true,
+      "completed_trials": 0,
+      "shutdown": true
+    },
+    {
+      "case": "diagnostic",
+      "expected_failure": false,
+      "completed_trials": 2,
+      "shutdown": true
+    },
+    {
+      "case": "diagnostic-metrics-failure",
+      "expected_failure": true,
+      "completed_trials": 1,
+      "shutdown": true
+    }
+  ],
+  "scope": "CPU-only fake vLLM/torch state machine, normalized stop semantics, fresh object identity, timed boundaries, exact-output gates, logger initialization and cleanup. No real vLLM, torch, CUDA or GPU execution."
+}

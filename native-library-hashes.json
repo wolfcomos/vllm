@@ -1,0 +1,42 @@
+{
+  "_C_stable_libtorch.abi3.so": {
+    "sha256": "7458c3b62e3153c23321255889834e00183de2c4f390e1f8fcf8b77d541b4dc3",
+    "bytes": 74490832
+  },
+  "_deepselect_C.abi3.so": {
+    "sha256": "d436b4e305d5f8d171d43e576a26dca557a779a5d3bfdd59eafd5393a352b0ed",
+    "bytes": 4346976
+  },
+  "_flashkda_C.abi3.so": {
+    "sha256": "412e9c8eb9c4b69b8bc93de39cad7470f831fc205e6d44930a30d8d0e9982e08",
+    "bytes": 4645856
+  },
+  "_flashmla_C.abi3.so": {
+    "sha256": "d8d6dc712c1765f73f14e7a56bf42b5d8385b0b4b071fbc1fe4088bd72369912",
+    "bytes": 3596024
+  },
+  "_flashmla_extension_C.abi3.so": {
+    "sha256": "9ff54f4b308f067caacf6209c5e00c331fdf8435333727362dd649569afa5dfc",
+    "bytes": 300336
+  },
+  "_moe_C_stable_libtorch.abi3.so": {
+    "sha256": "942c4654dcdb3ae09ac2d5619857e236c6ad924330628fc17fe757400aad3d43",
+    "bytes": 40482896
+  },
+  "_qutlass_C.abi3.so": {
+    "sha256": "505e688319f947b73a27c03867e448ab1da8b0f4d1291fc98273bbabd74ac164",
+    "bytes": 1377880
+  },
+  "cumem_allocator.abi3.so": {
+    "sha256": "02760bd7a9018e24664b8e736a163b43efc0c90fd9766db8b862851ab332b2df",
+    "bytes": 204792
+  },
+  "fs_io_C.abi3.so": {
+    "sha256": "244ec7ba2009c869cb9663a18841ec2f41733e84edc14427bc7cd0b359b80d86",
+    "bytes": 205040
+  },
+  "spinloop.abi3.so": {
+    "sha256": "3b65016974af6fe3f9379228aae4ba8917ed07c321a1736fdbb5d7b7824a6a90",
+    "bytes": 202544
+  }
+}
