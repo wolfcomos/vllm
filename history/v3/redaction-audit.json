@@ -1,0 +1,48 @@
+{
+  "method": "Explicit allowlist projection with full frozen-comparator recomputation and independent raw token/tail verification",
+  "source_arms": [
+    "baseline",
+    "default-a",
+    "fp16-a",
+    "fp16-b",
+    "default-b"
+  ],
+  "retained_measured": 70,
+  "retained_warmups": 50,
+  "retained_native_request_observations": 2880,
+  "frozen_check_count": 36,
+  "frozen_failed_check_count": 9,
+  "frozen_integrity_passed": true,
+  "frozen_performance_passed": false,
+  "frozen_comparison_exact_copy": true,
+  "all_trial_token_checksums_verified": true,
+  "warmup_and_measured_output_repeatability_verified": true,
+  "posthoc_summary_matches_prior_audit": true,
+  "excluded_categories": [
+    "Raw prompt and output arrays or model responses",
+    "Runtime request identifiers",
+    "Machine names, GPU UUIDs, addresses and allocation identifiers",
+    "Private filesystem locations",
+    "Raw process logs, orchestration metadata and GPU snapshots",
+    "Container registry or internal service URLs"
+  ],
+  "transforms": [
+    "Local model location becomes public model identifier",
+    "Per-request timestamps independently rebased within each clock domain",
+    "Cache paths become rank plus checksum",
+    "Tail witness becomes anonymous array position"
+  ],
+  "exact_text_inclusions": [
+    "PROTOCOL.md",
+    "harness/run_e2e.py",
+    "harness/compare_e2e.py",
+    "harness/orchestrate.py"
+  ],
+  "portable_path_policy": "Exact harness /work mounts are generic reproduction conventions, not original host paths",
+  "runtime_policy": "Exact recorded development-build versions retained; no claim those builds are publicly installable",
+  "privacy_scan_passed": true,
+  "production_changed": false,
+  "published": false,
+  "projector_sha256": "8495c1f720e9e727e94e0fa6ddbe637df3092992b8c3ee57479c503d43d25a03",
+  "projection_helpers_sha256": "1014eb14dec26a98542f3697305f6a2c8838dacb28aa0f0ef733255b09b1d5ab"
+}

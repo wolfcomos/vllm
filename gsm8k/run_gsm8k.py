@@ -1,5 +1,6 @@
 """Pinned pretrained MiniMax M3 GSM8K regression; external validation harness."""
 import argparse
+from datetime import datetime, timezone
 import hashlib
 import importlib.metadata
 import json
@@ -8,11 +9,47 @@ from pathlib import Path
 import time
 import traceback
 
+from gsm8k_cache_seed import PROTOCOL, cache_identity, cache_manifest, file_digest
+
+COMMITS = {
+    "baseline": "a20280f30e3169d33a7e21d1d117e9719bace00b",
+    "candidate": "25acf1953bf42857aec52d5f90cb7eac174d3189",
+}
+SOURCE_FILES = (
+    "config/attention.py", "models/minimax_m3/common/ops/sparse_attn.py",
+    "models/minimax_m3/common/sparse_attention.py", "models/minimax_m3/nvidia/model.py",
+    "models/minimax_m3/nvidia/sparse_attention_msa.py",
+)
+API_FILES = (
+    "entrypoints/llm.py", "sampling_params.py", "v1/engine/llm_engine.py",
+    "v1/engine/core_client.py", "v1/engine/core.py", "v1/core/sched/scheduler.py",
+    "v1/engine/output_processor.py", "v1/metrics/stats.py", "outputs.py",
+    "model_executor/warmup/kernel_warmup.py", "model_executor/warmup/flashinfer_autotune_cache.py",
+)
+
+
+def prepare_dataset(directory, manifest):
+    """Make the repository loader consume the supplied immutable local files."""
+    import tempfile
+
+    for name, expected in manifest["files"].items():
+        source = directory / name
+        assert file_digest(source) == expected, ("Dataset changed", source)
+        target = Path(tempfile.gettempdir()) / name
+        if target.exists():
+            assert file_digest(target) == expected, ("Different cached dataset", target)
+        else:
+            temporary = target.with_suffix(f".{os.getpid()}.tmp")
+            temporary.write_bytes(source.read_bytes())
+            temporary.replace(target)
+    return Path(tempfile.gettempdir())
+
 
 def install_dispatch_recorder(worker):
     import inspect
     import torch
     from vllm.models.minimax_m3.common.ops import sparse_attn
+    from vllm.models.minimax_m3.common.sparse_attention import MiniMaxM3SparseImpl
 
     counter = {"launches": 0, "variants": {}, "samples": []}
     worker.gsm8k_dispatch_counter = counter
@@ -48,12 +85,23 @@ def install_dispatch_recorder(worker):
             return launch
 
     sparse_attn._gqa_sparse_decode_kernel = Recorder()
+    props = torch.cuda.get_device_properties(torch.cuda.current_device())
+    implementations = []
+    for name, module in worker.model_runner.model.named_modules():
+        impl = getattr(module, "impl", None)
+        if isinstance(impl, MiniMaxM3SparseImpl):
+            implementations.append({"module": name, "class": type(impl).__name__,
+                                    "fp16_dot": getattr(impl, "fp16_dot", False),
+                                    "use_cutlass_decode": getattr(impl, "use_cutlass_decode", False),
+                                    "kv_cache_dtype": impl.kv_cache_dtype})
+    assert implementations and not any(row["use_cutlass_decode"] for row in implementations)
     return {
         "rank": worker.rank,
         "source": inspect.getsourcefile(sparse_attn),
         "source_sha256": hashlib.sha256(Path(sparse_attn.__file__).read_bytes()).hexdigest(),
-        "gpu": str(torch.cuda.get_device_properties(torch.cuda.current_device())),
-        "num_sms": torch.cuda.get_device_properties(torch.cuda.current_device()).multi_processor_count,
+        "gpu": str(props), "gpu_uuid": str(getattr(props, "uuid", "unavailable")),
+        "capability": [props.major, props.minor], "num_sms": props.multi_processor_count,
+        "implementations": implementations,
         "attention_config": str(worker.vllm_config.attention_config),
     }
 
@@ -87,12 +135,6 @@ def write_json(path, value):
     temp.replace(path)
 
 
-def cache_manifest():
-    root = Path('/work/cache/flashinfer')
-    return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
-            for p in sorted(root.rglob('*')) if p.is_file()}
-
-
 def full_dispatch_delta(before, after, workers, mode):
     summary = []
     for initial, final, worker in zip(before, after, workers, strict=True):
@@ -122,18 +164,40 @@ def full_dispatch_delta(before, after, workers, mode):
 
 
 def main():
+    if not __debug__:
+        raise RuntimeError("Assertions must remain enabled")
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["baseline", "bf16", "fp16"], required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--questions", type=int, default=1319)
     parser.add_argument("--smoke-only", action="store_true")
+    parser.add_argument("--source-pins", type=Path, default=Path("/work/source-pins.json"))
+    parser.add_argument("--dataset-dir", type=Path, default=Path("/work/gsm8k/data"))
+    parser.add_argument("--dataset-manifest", type=Path, default=Path(__file__).with_name("dataset-manifest.json"))
+    parser.add_argument("--cache-dir", type=Path, required=True)
+    parser.add_argument("--baseline-result", type=Path)
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
+    assert not (args.output / "result.json").exists(), "Do not overwrite an earlier attempt"
+    assert not args.cache_dir.exists(), "Each arm requires a fresh cache directory"
+    args.cache_dir.mkdir(parents=True)
+    dataset_pin = json.loads(args.dataset_manifest.read_text())
+    dataset_cache = prepare_dataset(args.dataset_dir, dataset_pin)
+    witness = json.loads(args.baseline_result.read_text()) if args.baseline_result else None
+    if args.mode == "baseline":
+        assert witness is None
+        os.environ.pop("GSM8K_BASELINE_RESULT", None)
+    else:
+        assert witness and witness["status"] == "complete" and witness["mode"] == "baseline"
+        assert witness["protocol"] == PROTOCOL
+        os.environ["GSM8K_BASELINE_RESULT"] = str(args.baseline_result)
     os.environ["VLLM_ALLOW_INSECURE_SERIALIZATION"] = "1"
     os.environ["VLLM_WORKER_MULTIPROC_METHOD"] = "spawn"
     os.environ["VLLM_BATCH_INVARIANT"] = "0"
     os.environ["VLLM_USE_V2_MODEL_RUNNER"] = "0"
-    os.environ["VLLM_FLASHINFER_AUTOTUNE_CACHE_DIR"] = "/work/cache/flashinfer"
+    os.environ["VLLM_FLASHINFER_AUTOTUNE_CACHE_DIR"] = str(args.cache_dir)
+    os.environ["GSM8K_RESULT_DIR"] = str(args.output)
+    os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "1"
     from vllm import LLM, SamplingParams
     import torch
     import vllm
@@ -153,29 +217,43 @@ def main():
         kv_cache_memory_bytes=8 * 2**30, enable_chunked_prefill=True,
         enable_prefix_caching=False, generation_config="vllm",
         attention_config=attention_config, disable_log_stats=True,
+        worker_extension_cls="gsm8k_cache_seed.FlashInferCacheSeed",
     )
-    if args.mode != 'baseline':
-        settings['worker_extension_cls'] = 'gsm8k_cache_seed.FlashInferCacheSeed'
-        os.environ['GSM8K_RESULT_DIR'] = str(args.output)
     params = dict(temperature=0.0, seed=42, max_tokens=1024, stop=None)
     result = {
         "mode": args.mode, "status": "starting", "settings": settings,
         "sampling": params, "chat_template_kwargs": {"thinking_mode": "disabled"},
-        "protocol": "repository GSM8K first5 train fewshots, complete1319 test, chat, nonthinking",
+        "protocol": PROTOCOL,
+        "prompt_protocol": "repository GSM8K first5 train fewshots, complete1319 test, chat, nonthinking",
+        "started_at_utc": datetime.now(timezone.utc).isoformat(),
         "source": vllm.__file__, "torch": torch.__version__, "cuda": torch.version.cuda,
-        "packages": {p: importlib.metadata.version(p) for p in ["vllm", "triton", "nvidia-cutlass-dsl", "flashinfer-python"]},
+        "packages": {p: importlib.metadata.version(p) for p in ["vllm", "torch", "triton", "nvidia-cutlass-dsl", "flashinfer-python", "transformers", "tokenizers"]},
         "criterion": {"baseline_sanity_floor": 0.80, "max_accuracy_drop": 0.005, "max_invalid_rate": 0.01, "max_truncation_rate": 0.01, "default_exact_output_tokens": True},
-        "autotune_cache_before": cache_manifest(),
+        "autotune_cache_before": [], "autotune_cache_root": str(args.cache_dir),
+        "harness_hashes": {name: file_digest(Path(__file__).with_name(name))
+                           for name in ("run_gsm8k.py", "gsm8k_cache_seed.py", "compare_gsm8k.py", "check_cache_log.py", "PROTOCOL.md")},
+        "dataset_manifest_sha256": file_digest(args.dataset_manifest),
+        "source_pins_sha256": file_digest(args.source_pins),
+        "cpu_affinity": sorted(os.sched_getaffinity(0)),
+        "environment": {key: os.environ.get(key) for key in ("CUDA_VISIBLE_DEVICES", "OMP_NUM_THREADS", "VLLM_CACHE_ROOT", "TRITON_CACHE_DIR")},
     }
     package_root = Path(vllm.__file__).parent
-    result["source_hashes"] = {f: hashlib.sha256((package_root/f).read_bytes()).hexdigest()
-        for f in ['config/attention.py', 'models/minimax_m3/common/ops/sparse_attn.py',
-                  'models/minimax_m3/common/sparse_attention.py',
-                  'models/minimax_m3/nvidia/model.py',
-                  'models/minimax_m3/nvidia/sparse_attention_msa.py']}
-    pin = json.loads(Path('/work/source-pins.json').read_text())['baseline' if args.mode == 'baseline' else 'candidate']
+    result["source_hashes"] = {f: file_digest(package_root / f) for f in SOURCE_FILES}
+    result["api_hashes"] = {f: file_digest(package_root / f) for f in API_FILES}
+    import inspect
+    result["repository_eval_sha256"] = file_digest(inspect.getsourcefile(_build_gsm8k_prompts))
+    pins = json.loads(args.source_pins.read_text())
+    assert all(pins[key]["commit"] == value for key, value in COMMITS.items())
+    pin = pins['baseline' if args.mode == 'baseline' else 'candidate']
     assert result['source_hashes'] == pin['source_hashes'], 'Source differs from pinned revision'
     result['source_commit'] = pin['commit']
+    if witness:
+        result["baseline_result_sha256"] = file_digest(args.baseline_result)
+        for key in ("torch", "cuda", "packages", "api_hashes", "repository_eval_sha256", "harness_hashes", "source_pins_sha256", "dataset_manifest_sha256"):
+            assert result[key] == witness[key], ("Baseline pairing changed", key)
+        normalized = json.loads(json.dumps(settings))
+        normalized["attention_config"].pop("minimax_m3_msa_decode_fp16_dot", None)
+        assert normalized == witness["settings"]
     out = args.output / "result.json"
     write_json(out, result)
     llm = None
@@ -186,29 +264,29 @@ def main():
         result["workers"] = llm.collective_rpc(install_dispatch_recorder, timeout=60)
         assert sorted(w["rank"] for w in result["workers"]) == list(range(4))
         assert all(w["source_sha256"] == pin["source_hashes"]["models/minimax_m3/common/ops/sparse_attn.py"] for w in result["workers"])
+        for worker in result["workers"]:
+            assert worker["capability"][0] == 10 and "GB200" in worker["gpu"]
+            assert all(impl["fp16_dot"] == (args.mode == "fp16") and impl["kv_cache_dtype"] == "fp8"
+                       for impl in worker["implementations"])
         result["autotuner_statistics_after_startup"] = llm.collective_rpc(read_tuner_statistics, timeout=60)
         if args.mode != 'baseline':
             assert_no_tuning(result["autotuner_statistics_after_startup"])
-        result["autotune_cache_after_startup"] = cache_manifest()
+        result["autotune_cache_after_startup"] = cache_manifest(args.output)
+        result["validation_cache_seed"] = [json.loads(p.read_text())
+            for p in sorted(args.output.glob("cache-rank*.json"))]
         if args.mode != 'baseline':
-            result['validation_cache_seed'] = [json.loads(p.read_text())
-                for p in sorted(args.output.glob('cache-seed-rank*.json'))]
-            assert len(result['validation_cache_seed']) == 4
-            for seed in result['validation_cache_seed']:
-                for item in seed['files']:
-                    source = Path(item['source']).read_bytes()
-                    destination = Path(item['destination']).read_bytes()
-                    assert json.loads(source) == json.loads(destination), 'FlashInfer tactics changed'
-                    item['after_startup_sha256'] = hashlib.sha256(destination).hexdigest()
+            assert cache_identity(result["autotune_cache_after_startup"]) == cache_identity(witness["autotune_cache_after_generation"])
+            assert all(row["seeded_from"] for row in result["validation_cache_seed"])
         prompts, labels = _build_gsm8k_prompts(args.questions, 5)
         assert len(prompts) == args.questions == 1319, 'Full GSM8K test split required'
         from vllm.assets.base import VLLM_S3_BUCKET_URL
         result['dataset'] = {'train_examples': 7473, 'test_examples': len(prompts),
             'train_fewshot_indices': list(range(5)),
             'files': {f: {'url': f'{VLLM_S3_BUCKET_URL}/ci-datasets/gsm8k/{f}',
-                          'sha256': hashlib.sha256((Path('/tmp')/f).read_bytes()).hexdigest()}
+                          'sha256': file_digest(dataset_cache / f)}
                       for f in ['train.jsonl', 'test.jsonl']}}
-        train_rows = [json.loads(s) for s in (Path('/tmp')/'train.jsonl').read_text().splitlines()]
+        train_rows = [json.loads(s) for s in (dataset_cache / 'train.jsonl').read_text().splitlines()]
+        assert len(train_rows) == 7473
         result['dataset']['fewshot_examples'] = train_rows[:5]
         tokenizer = llm.get_tokenizer()
         conversations = [[{"role": "user", "content": p}] for p in prompts]
@@ -217,7 +295,6 @@ def main():
         assert rendered.endswith("</mm:think>"), repr(rendered[-100:])
         result["prompts_sha256"] = hashlib.sha256(json.dumps(prompts).encode()).hexdigest()
         result["labels_sha256"] = hashlib.sha256(json.dumps(labels).encode()).hexdigest()
-        dataset_pin = json.loads(Path('/work/dataset-manifest.json').read_text())
         assert {f: d['sha256'] for f, d in result['dataset']['files'].items()} == dataset_pin['files']
         assert result['prompts_sha256'] == dataset_pin['prompts_sha256']
         assert result['labels_sha256'] == dataset_pin['labels_sha256']
@@ -259,19 +336,17 @@ def main():
         result["autotuner_statistics_after_generation"] = llm.collective_rpc(read_tuner_statistics, timeout=60)
         for initial, final in zip(result["autotuner_statistics_after_startup"], result["autotuner_statistics_after_generation"], strict=True):
             assert final["statistics_identity"] == initial["statistics_identity"], "Tuner statistics were reset"
-            for key in ["tuned_op_successful_configs", "failed_profiling_count", "failed_tactics"]:
+            for key in ["cache_misses", "tuned_op_total_configs", "tuned_op_successful_configs", "failed_profiling_count", "failed_tactics"]:
                 assert final[key] == initial[key], ('Unexpected generation-time tuning', key, initial, final)
         if args.mode != 'baseline':
             assert_no_tuning(result["autotuner_statistics_after_generation"])
-        result["autotune_cache_after_generation"] = cache_manifest()
+        result["autotune_cache_after_generation"] = cache_manifest(args.output)
         if args.mode != 'baseline':
-            for seed in result['validation_cache_seed']:
-                for item in seed['files']:
-                    final_raw = Path(item['destination']).read_bytes()
-                    item['after_generation_sha256'] = hashlib.sha256(final_raw).hexdigest()
-                    assert item['after_generation_sha256'] == item['sha256'], 'FlashInfer tactics changed after generation'
+            assert cache_identity(result["autotune_cache_after_generation"]) == cache_identity(witness["autotune_cache_after_generation"])
         assert result['autotune_cache_after_generation'] == result['autotune_cache_after_startup'], 'FlashInfer cache changed during generation'
         result["status"] = "complete"
+        result["predictions_sha256"] = file_digest(args.output / "predictions.jsonl")
+        result["finished_generation_at_utc"] = datetime.now(timezone.utc).isoformat()
         write_json(out, result)
         print(json.dumps({"mode": args.mode, "status": result["status"], "metrics": result["metrics"]}), flush=True)
     except Exception:
@@ -281,7 +356,17 @@ def main():
         raise
     finally:
         if llm is not None:
-            llm.llm_engine.engine_core.shutdown(timeout=60)
+            try:
+                llm.llm_engine.engine_core.shutdown(timeout=60)
+                result["shutdown_completed"] = True
+            except Exception:
+                result["shutdown_completed"] = False
+                result["shutdown_traceback"] = traceback.format_exc()
+                result["status"] = "failed"
+                raise
+            finally:
+                result["finished_at_utc"] = datetime.now(timezone.utc).isoformat()
+                write_json(out, result)
 
 
 if __name__ == "__main__":

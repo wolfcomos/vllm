@@ -7,6 +7,8 @@ import math
 from pathlib import Path
 import re
 
+from gsm8k_cache_seed import PROTOCOL, cache_identity
+
 
 def answer(text):
     values = re.findall(r"\d+", text.replace(",", ""))
@@ -22,6 +24,8 @@ def read(root):
     result = json.loads((root / "result.json").read_text())
     rows = [json.loads(s) for s in (root / "predictions.jsonl").read_text().splitlines()]
     assert result["status"] == "complete" and len(rows) == 1319
+    assert result["protocol"] == PROTOCOL and result["shutdown_completed"] is True
+    assert hashlib.sha256((root / "predictions.jsonl").read_bytes()).hexdigest() == result["predictions_sha256"]
     assert [r["id"] for r in rows] == list(range(1319))
     for row in rows:
         assert answer(row["text"]) == row["prediction"]
@@ -39,7 +43,11 @@ def main():
     args = parser.parse_args()
     data = {m: read(args.root / m) for m in ["baseline", "bf16", "fp16"]}
     base_result, base_rows, base_metrics = data["baseline"]
-    summary = {"criterion": base_result["criterion"], "baseline": base_metrics, "comparisons": {}}
+    summary = {"protocol": PROTOCOL, "criterion": base_result["criterion"],
+               "criterion_scope": "Local regression criteria; not upstream policy or a claim of quality equivalence",
+               "baseline": base_metrics, "comparisons": {},
+               "source_commits": {mode: item[0]["source_commit"] for mode, item in data.items()},
+               "result_sha256": {mode: hashlib.sha256((args.root / mode / "result.json").read_bytes()).hexdigest() for mode in data}}
     passed = base_metrics["accuracy"] >= 0.80 and base_metrics["invalid"] / 1319 <= 0.01 and base_metrics["truncated"] / 1319 <= 0.01
     for mode in ["bf16", "fp16"]:
         result, rows, metrics = data[mode]
@@ -49,9 +57,12 @@ def main():
         assert result["prompts_sha256"] == base_result["prompts_sha256"]
         assert result["labels_sha256"] == base_result["labels_sha256"]
         assert result['packages'] == base_result['packages']
+        for key in ("torch", "cuda", "api_hashes", "repository_eval_sha256", "harness_hashes", "source_pins_sha256", "dataset_manifest_sha256", "criterion"):
+            assert result[key] == base_result[key], key
+        assert result["baseline_result_sha256"] == summary["result_sha256"]["baseline"]
+        assert cache_identity(result["autotune_cache_after_generation"]) == cache_identity(base_result["autotune_cache_after_generation"])
         settings = json.loads(json.dumps(result['settings']))
         settings['attention_config'].pop('minimax_m3_msa_decode_fp16_dot', None)
-        assert settings.pop('worker_extension_cls') == 'gsm8k_cache_seed.FlashInferCacheSeed'
         assert settings == base_result['settings']
         lost = gained = same_tokens = 0
         discordant = []

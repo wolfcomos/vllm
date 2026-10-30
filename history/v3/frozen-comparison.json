@@ -1,0 +1,1108 @@
+{
+  "status": "complete",
+  "protocol": "gb200-e2e-abba-v3",
+  "integrity_passed": true,
+  "performance_passed": false,
+  "checks": [
+    {
+      "name": "baseline/B8/seconds/MAD",
+      "passed": true,
+      "value": 0.0007381970847646486,
+      "maximum": 0.02
+    },
+    {
+      "name": "baseline/B8/mean_tpot_seconds/MAD",
+      "passed": true,
+      "value": 0.0003924895732469945,
+      "maximum": 0.02
+    },
+    {
+      "name": "baseline/B40/seconds/MAD",
+      "passed": true,
+      "value": 0.006947069263606051,
+      "maximum": 0.02
+    },
+    {
+      "name": "baseline/B40/mean_tpot_seconds/MAD",
+      "passed": true,
+      "value": 0.0052846506504916286,
+      "maximum": 0.02
+    },
+    {
+      "name": "default-a/B8/seconds/MAD",
+      "passed": true,
+      "value": 0.0023780143270264583,
+      "maximum": 0.02
+    },
+    {
+      "name": "default-a/B8/mean_tpot_seconds/MAD",
+      "passed": true,
+      "value": 0.002082677913219403,
+      "maximum": 0.02
+    },
+    {
+      "name": "default-a/B40/seconds/MAD",
+      "passed": true,
+      "value": 0.005950179699311226,
+      "maximum": 0.02
+    },
+    {
+      "name": "default-a/B40/mean_tpot_seconds/MAD",
+      "passed": true,
+      "value": 0.003770048417380564,
+      "maximum": 0.02
+    },
+    {
+      "name": "fp16-a/B8/seconds/MAD",
+      "passed": true,
+      "value": 0.007608344786264439,
+      "maximum": 0.02
+    },
+    {
+      "name": "fp16-a/B8/mean_tpot_seconds/MAD",
+      "passed": true,
+      "value": 0.005027721482719852,
+      "maximum": 0.02
+    },
+    {
+      "name": "fp16-a/B40/seconds/MAD",
+      "passed": true,
+      "value": 0.005456070885148556,
+      "maximum": 0.02
+    },
+    {
+      "name": "fp16-a/B40/mean_tpot_seconds/MAD",
+      "passed": true,
+      "value": 0.0032645626869981263,
+      "maximum": 0.02
+    },
+    {
+      "name": "fp16-b/B8/seconds/MAD",
+      "passed": true,
+      "value": 0.001591955151979347,
+      "maximum": 0.02
+    },
+    {
+      "name": "fp16-b/B8/mean_tpot_seconds/MAD",
+      "passed": true,
+      "value": 0.001255560466209592,
+      "maximum": 0.02
+    },
+    {
+      "name": "fp16-b/B40/seconds/MAD",
+      "passed": true,
+      "value": 0.0004201497706493611,
+      "maximum": 0.02
+    },
+    {
+      "name": "fp16-b/B40/mean_tpot_seconds/MAD",
+      "passed": true,
+      "value": 0.0004401307313244083,
+      "maximum": 0.02
+    },
+    {
+      "name": "default-b/B8/seconds/MAD",
+      "passed": true,
+      "value": 0.004651558089797684,
+      "maximum": 0.02
+    },
+    {
+      "name": "default-b/B8/mean_tpot_seconds/MAD",
+      "passed": true,
+      "value": 0.0022523507196800354,
+      "maximum": 0.02
+    },
+    {
+      "name": "default-b/B40/seconds/MAD",
+      "passed": true,
+      "value": 0.0005988802089281071,
+      "maximum": 0.02
+    },
+    {
+      "name": "default-b/B40/mean_tpot_seconds/MAD",
+      "passed": true,
+      "value": 0.0017473471418707701,
+      "maximum": 0.02
+    },
+    {
+      "name": "B8/seconds/default-a:baseline/control",
+      "passed": false,
+      "ratio": 1.0499022314656767,
+      "maximum_absolute_change": 0.02
+    },
+    {
+      "name": "B8/seconds/default-b:default-a/control",
+      "passed": true,
+      "ratio": 0.9969288612310274,
+      "maximum_absolute_change": 0.02
+    },
+    {
+      "name": "B8/mean_tpot_seconds/default-a:baseline/control",
+      "passed": false,
+      "ratio": 1.027003213842548,
+      "maximum_absolute_change": 0.02
+    },
+    {
+      "name": "B8/mean_tpot_seconds/default-b:default-a/control",
+      "passed": true,
+      "ratio": 0.9986530907741745,
+      "maximum_absolute_change": 0.02
+    },
+    {
+      "name": "B40/seconds/default-a:baseline/control",
+      "passed": true,
+      "ratio": 1.0019242362068825,
+      "maximum_absolute_change": 0.02
+    },
+    {
+      "name": "B40/seconds/default-b:default-a/control",
+      "passed": false,
+      "ratio": 1.0724415046053215,
+      "maximum_absolute_change": 0.02
+    },
+    {
+      "name": "B40/E2E/fp16-a:default-a/no-regression",
+      "passed": false,
+      "ratio": 1.0982771958018664,
+      "maximum": 1.02
+    },
+    {
+      "name": "B40/E2E/fp16-a:default-b/no-regression",
+      "passed": false,
+      "ratio": 1.024090536486699,
+      "maximum": 1.02
+    },
+    {
+      "name": "B40/E2E/fp16-b:default-a/no-regression",
+      "passed": true,
+      "ratio": 0.984800188433099,
+      "maximum": 1.02
+    },
+    {
+      "name": "B40/E2E/fp16-b:default-b/no-regression",
+      "passed": true,
+      "ratio": 0.9182786979095181,
+      "maximum": 1.02
+    },
+    {
+      "name": "B40/mean_tpot_seconds/default-a:baseline/control",
+      "passed": true,
+      "ratio": 1.0001539354154252,
+      "maximum_absolute_change": 0.02
+    },
+    {
+      "name": "B40/mean_tpot_seconds/default-b:default-a/control",
+      "passed": false,
+      "ratio": 1.047578338668716,
+      "maximum_absolute_change": 0.02
+    },
+    {
+      "name": "B40/TPOT/fp16-a:default-a/benefit",
+      "passed": false,
+      "ratio": 1.0616827890114475,
+      "maximum": 0.97
+    },
+    {
+      "name": "B40/TPOT/fp16-a:default-b/benefit",
+      "passed": false,
+      "ratio": 1.0134638621495893,
+      "maximum": 0.97
+    },
+    {
+      "name": "B40/TPOT/fp16-b:default-a/benefit",
+      "passed": false,
+      "ratio": 0.98361505736879,
+      "maximum": 0.97
+    },
+    {
+      "name": "B40/TPOT/fp16-b:default-b/benefit",
+      "passed": true,
+      "ratio": 0.9389417679433769,
+      "maximum": 0.97
+    }
+  ],
+  "failed_checks": [
+    {
+      "name": "B8/seconds/default-a:baseline/control",
+      "passed": false,
+      "ratio": 1.0499022314656767,
+      "maximum_absolute_change": 0.02
+    },
+    {
+      "name": "B8/mean_tpot_seconds/default-a:baseline/control",
+      "passed": false,
+      "ratio": 1.027003213842548,
+      "maximum_absolute_change": 0.02
+    },
+    {
+      "name": "B40/seconds/default-b:default-a/control",
+      "passed": false,
+      "ratio": 1.0724415046053215,
+      "maximum_absolute_change": 0.02
+    },
+    {
+      "name": "B40/E2E/fp16-a:default-a/no-regression",
+      "passed": false,
+      "ratio": 1.0982771958018664,
+      "maximum": 1.02
+    },
+    {
+      "name": "B40/E2E/fp16-a:default-b/no-regression",
+      "passed": false,
+      "ratio": 1.024090536486699,
+      "maximum": 1.02
+    },
+    {
+      "name": "B40/mean_tpot_seconds/default-b:default-a/control",
+      "passed": false,
+      "ratio": 1.047578338668716,
+      "maximum_absolute_change": 0.02
+    },
+    {
+      "name": "B40/TPOT/fp16-a:default-a/benefit",
+      "passed": false,
+      "ratio": 1.0616827890114475,
+      "maximum": 0.97
+    },
+    {
+      "name": "B40/TPOT/fp16-a:default-b/benefit",
+      "passed": false,
+      "ratio": 1.0134638621495893,
+      "maximum": 0.97
+    },
+    {
+      "name": "B40/TPOT/fp16-b:default-a/benefit",
+      "passed": false,
+      "ratio": 0.98361505736879,
+      "maximum": 0.97
+    }
+  ],
+  "result_sha256": {
+    "baseline": "d80793c37a0ddecb5ce50cf2f04b699649f96f55add2bdbdbe18065832dfe052",
+    "default-a": "396089618fc4cf980a2818bec6886cbd707f8f41bb1b7476b5306defd7ba06cc",
+    "fp16-a": "fa624c987aad736ac010f7a4b6bba9fe3ada26fe21ebe5826ef91ecca7e365d5",
+    "fp16-b": "4fda1738e2d4ba795f7017507bc461d3452cd9917c8c3b30b8c8eaa508584f7d",
+    "default-b": "ac0d7d0d2a200e5597f978f0751527644b7a1ca16bd8d22e7deba352d28ea228"
+  },
+  "statistics": {
+    "baseline": {
+      "8": {
+        "seconds": {
+          "values": [
+            2.147942154086195,
+            2.150201876065694,
+            2.149790035095066,
+            2.1487457109615207,
+            2.143693207995966,
+            2.148204236989841,
+            2.146004708018154
+          ],
+          "median": 2.148204236989841,
+          "min": 2.143693207995966,
+          "max": 2.150201876065694,
+          "relative_mad": 0.0007381970847646486
+        },
+        "mean_tpot_seconds": {
+          "values": [
+            0.006730761646644632,
+            0.006734301771982299,
+            0.00673619825244589,
+            0.006740347951463442,
+            0.0067250266122773255,
+            0.006734423125995889,
+            0.006731658628753697
+          ],
+          "median": 0.006734301771982299,
+          "min": 0.0067250266122773255,
+          "max": 0.006740347951463442,
+          "relative_mad": 0.0003924895732469945
+        },
+        "mean_ttft_seconds": {
+          "values": [
+            0.42055562138557434,
+            0.4219526946544647,
+            0.4210143983364105,
+            0.4189305305480957,
+            0.41774871945381165,
+            0.4198265075683594,
+            0.41837891936302185
+          ],
+          "median": 0.4198265075683594,
+          "min": 0.41774871945381165,
+          "max": 0.4219526946544647,
+          "relative_mad": 0.002829480146290491
+        }
+      },
+      "40": {
+        "seconds": {
+          "values": [
+            5.772509256959893,
+            5.782957404037006,
+            5.77709341107402,
+            5.812891819048673,
+            6.248300960054621,
+            6.300096274004318,
+            6.322662875987589
+          ],
+          "median": 5.812891819048673,
+          "min": 5.772509256959893,
+          "max": 6.322662875987589,
+          "relative_mad": 0.006947069263606051
+        },
+        "mean_tpot_seconds": {
+          "values": [
+            0.01593984841722904,
+            0.01595894015163603,
+            0.015941171251333264,
+            0.016024532473187292,
+            0.01683635357314237,
+            0.01692152456482005,
+            0.016972134124063065
+          ],
+          "median": 0.016024532473187292,
+          "min": 0.01593984841722904,
+          "max": 0.016972134124063065,
+          "relative_mad": 0.0052846506504916286
+        },
+        "mean_ttft_seconds": {
+          "values": [
+            1.6274096012115478,
+            1.6330141723155975,
+            1.6311297357082366,
+            1.646131956577301,
+            1.8740985214710235,
+            1.9046158909797668,
+            1.9142411053180695
+          ],
+          "median": 1.646131956577301,
+          "min": 1.6274096012115478,
+          "max": 1.9142411053180695,
+          "relative_mad": 0.011373544685130464
+        }
+      }
+    },
+    "default-a": {
+      "8": {
+        "seconds": {
+          "values": [
+            2.255404422059655,
+            2.25982508296147,
+            2.256363307009451,
+            2.2500410380307585,
+            2.247299841954373,
+            2.22273342392873,
+            2.2731295629637316
+          ],
+          "median": 2.255404422059655,
+          "min": 2.22273342392873,
+          "max": 2.2731295629637316,
+          "relative_mad": 0.0023780143270264583
+        },
+        "mean_tpot_seconds": {
+          "values": [
+            0.006916149562811388,
+            0.006928623284044328,
+            0.006918021462293908,
+            0.006901745450872398,
+            0.006891745045112318,
+            0.006851316059884779,
+            0.006951175062853259
+          ],
+          "median": 0.006916149562811388,
+          "min": 0.006851316059884779,
+          "max": 0.006951175062853259,
+          "relative_mad": 0.002082677913219403
+        },
+        "mean_ttft_seconds": {
+          "values": [
+            0.4807175397872925,
+            0.48195141553878784,
+            0.4811858832836151,
+            0.47896289825439453,
+            0.478838175535202,
+            0.46436211466789246,
+            0.48955342173576355
+          ],
+          "median": 0.4807175397872925,
+          "min": 0.46436211466789246,
+          "max": 0.48955342173576355,
+          "relative_mad": 0.0036500468313977927
+        }
+      },
+      "40": {
+        "seconds": {
+          "values": [
+            6.181012277957052,
+            5.894411465036683,
+            5.851715013035573,
+            5.822504095965996,
+            5.789422890054993,
+            5.824077195953578,
+            5.7874796849209815
+          ],
+          "median": 5.824077195953578,
+          "min": 5.7874796849209815,
+          "max": 6.181012277957052,
+          "relative_mad": 0.005950179699311226
+        },
+        "mean_tpot_seconds": {
+          "values": [
+            0.01665542038505687,
+            0.016147710655224693,
+            0.01608742177928113,
+            0.01600943038551657,
+            0.015967674369697787,
+            0.016026999216250545,
+            0.015963486489216687
+          ],
+          "median": 0.016026999216250545,
+          "min": 0.015963486489216687,
+          "max": 0.01665542038505687,
+          "relative_mad": 0.003770048417380564
+        },
+        "mean_ttft_seconds": {
+          "values": [
+            1.8529715836048126,
+            1.6959021270275116,
+            1.6684028863906861,
+            1.6595850586891174,
+            1.6371915936470032,
+            1.656740915775299,
+            1.6361420810222627
+          ],
+          "median": 1.6595850586891174,
+          "min": 1.6361420810222627,
+          "max": 1.8529715836048126,
+          "relative_mad": 0.01349341205795293
+        }
+      }
+    },
+    "fp16-a": {
+      "8": {
+        "seconds": {
+          "values": [
+            2.235993009991944,
+            2.2443741370225325,
+            2.2488182859960943,
+            2.395738648949191,
+            2.3867960160132498,
+            2.3813574629602954,
+            2.377648678026162
+          ],
+          "median": 2.377648678026162,
+          "min": 2.235993009991944,
+          "max": 2.395738648949191,
+          "relative_mad": 0.007608344786264439
+        },
+        "mean_tpot_seconds": {
+          "values": [
+            0.006846954672900942,
+            0.00685431197994416,
+            0.006863670627353713,
+            0.007119632664412789,
+            0.007085191738830569,
+            0.007084016203960203,
+            0.007084296252487191
+          ],
+          "median": 0.007084016203960203,
+          "min": 0.006846954672900942,
+          "max": 0.007119632664412789,
+          "relative_mad": 0.005027721482719852
+        },
+        "mean_ttft_seconds": {
+          "values": [
+            0.4788404107093811,
+            0.4854021668434143,
+            0.48746442794799805,
+            0.5691882967948914,
+            0.5689878761768341,
+            0.563847541809082,
+            0.5600857138633728
+          ],
+          "median": 0.5600857138633728,
+          "min": 0.4788404107093811,
+          "max": 0.5691882967948914,
+          "relative_mad": 0.016252124819843266
+        }
+      },
+      "40": {
+        "seconds": {
+          "values": [
+            6.431350661907345,
+            6.417204400058836,
+            6.428797572967596,
+            6.396451170905493,
+            6.262719218968414,
+            6.239026067079976,
+            6.2663637230871245
+          ],
+          "median": 6.396451170905493,
+          "min": 6.239026067079976,
+          "max": 6.431350661907345,
+          "relative_mad": 0.005456070885148556
+        },
+        "mean_tpot_seconds": {
+          "values": [
+            0.017047018408581305,
+            0.017071137685082196,
+            0.01706189483901778,
+            0.01701558922739316,
+            0.016686874647218478,
+            0.016726086610841438,
+            0.0167745770078367
+          ],
+          "median": 0.01701558922739316,
+          "min": 0.016686874647218478,
+          "max": 0.017071137685082196,
+          "relative_mad": 0.0032645626869981263
+        },
+        "mean_ttft_seconds": {
+          "values": [
+            2.004785442352295,
+            1.9846368908882142,
+            1.9982358872890473,
+            1.9779411375522613,
+            1.9278689682483674,
+            1.8941503047943116,
+            1.9090974628925323
+          ],
+          "median": 1.9779411375522613,
+          "min": 1.8941503047943116,
+          "max": 2.004785442352295,
+          "relative_mad": 0.01357184209902922
+        }
+      }
+    },
+    "fp16-b": {
+      "8": {
+        "seconds": {
+          "values": [
+            2.1278080110205337,
+            2.1368046900024638,
+            2.126062629977241,
+            2.1337107899598777,
+            2.1294636690290645,
+            2.130319416988641,
+            2.134495273930952
+          ],
+          "median": 2.130319416988641,
+          "min": 2.126062629977241,
+          "max": 2.1368046900024638,
+          "relative_mad": 0.001591955151979347
+        },
+        "mean_tpot_seconds": {
+          "values": [
+            0.006657740233669185,
+            0.006675556153070419,
+            0.00665686950544078,
+            0.006666109937770457,
+            0.006663902164220025,
+            0.0066669951819623,
+            0.0066760685874089854
+          ],
+          "median": 0.006666109937770457,
+          "min": 0.00665686950544078,
+          "max": 0.0066760685874089854,
+          "relative_mad": 0.001255560466209592
+        },
+        "mean_ttft_seconds": {
+          "values": [
+            0.4189023971557617,
+            0.4234241545200348,
+            0.417371928691864,
+            0.4226890504360199,
+            0.4189568758010864,
+            0.4191046357154846,
+            0.42096638679504395
+          ],
+          "median": 0.4191046357154846,
+          "min": 0.417371928691864,
+          "max": 0.4234241545200348,
+          "relative_mad": 0.004134306509548797
+        }
+      },
+      "40": {
+        "seconds": {
+          "values": [
+            5.733142529032193,
+            5.73185852705501,
+            5.739269410027191,
+            5.728627544012852,
+            5.73688761505764,
+            5.736651809071191,
+            5.735552320023999
+          ],
+          "median": 5.735552320023999,
+          "min": 5.728627544012852,
+          "max": 5.739269410027191,
+          "relative_mad": 0.0004201497706493611
+        },
+        "mean_tpot_seconds": {
+          "values": [
+            0.01576369828024112,
+            0.015764397753541833,
+            0.015777430739847248,
+            0.015757459357629677,
+            0.015784692302387316,
+            0.01577557601672643,
+            0.0157592928833351
+          ],
+          "median": 0.015764397753541833,
+          "min": 0.015757459357629677,
+          "max": 0.015784692302387316,
+          "relative_mad": 0.0004401307313244083
+        },
+        "mean_ttft_seconds": {
+          "values": [
+            1.6332563400268554,
+            1.6320531725883485,
+            1.6358627080917358,
+            1.630682998895645,
+            1.6318776905536652,
+            1.6341809153556823,
+            1.6372710585594177
+          ],
+          "median": 1.6332563400268554,
+          "min": 1.630682998895645,
+          "max": 1.6372710585594177,
+          "relative_mad": 0.0008441108963749989
+        }
+      }
+    },
+    "default-b": {
+      "8": {
+        "seconds": {
+          "values": [
+            2.25395356095396,
+            2.2484777620993555,
+            2.258936687023379,
+            2.25096759700682,
+            2.2103197131073102,
+            2.2218071229290217,
+            2.194338141940534
+          ],
+          "median": 2.2484777620993555,
+          "min": 2.194338141940534,
+          "max": 2.258936687023379,
+          "relative_mad": 0.004651558089797684
+        },
+        "mean_tpot_seconds": {
+          "values": [
+            0.0069115295268905655,
+            0.006908728745161081,
+            0.006922390749997587,
+            0.0069068341371580485,
+            0.006837824763794083,
+            0.006858372225086022,
+            0.0068157180675246076
+          ],
+          "median": 0.0069068341371580485,
+          "min": 0.0068157180675246076,
+          "max": 0.006922390749997587,
+          "relative_mad": 0.0022523507196800354
+        },
+        "mean_ttft_seconds": {
+          "values": [
+            0.48042628169059753,
+            0.47567975521087646,
+            0.4826396107673645,
+            0.4786621332168579,
+            0.45559296011924744,
+            0.46195101737976074,
+            0.44530320167541504
+          ],
+          "median": 0.47567975521087646,
+          "min": 0.44530320167541504,
+          "max": 0.4826396107673645,
+          "relative_mad": 0.014631389039045022
+        }
+      },
+      "40": {
+        "seconds": {
+          "values": [
+            5.831645873025991,
+            6.193977821036242,
+            6.245982110965997,
+            6.2497227060375735,
+            6.2262861939379945,
+            6.24598743498791,
+            6.246720945928246
+          ],
+          "median": 6.245982110965997,
+          "min": 5.831645873025991,
+          "max": 6.2497227060375735,
+          "relative_mad": 0.0005988802089281071
+        },
+        "mean_tpot_seconds": {
+          "values": [
+            0.016014692313608477,
+            0.016712688035149054,
+            0.01682738727708484,
+            0.01681887436266669,
+            0.016783965029799397,
+            0.016811687869154483,
+            0.016789537212804562
+          ],
+          "median": 0.016789537212804562,
+          "min": 0.016014692313608477,
+          "max": 0.01682738727708484,
+          "relative_mad": 0.0017473471418707701
+        },
+        "mean_ttft_seconds": {
+          "values": [
+            1.6669698536396027,
+            1.8515313565731049,
+            1.8742030680179596,
+            1.8804897606372832,
+            1.86569487452507,
+            1.8785297751426697,
+            1.8849750876426696
+          ],
+          "median": 1.8742030680179596,
+          "min": 1.6669698536396027,
+          "max": 1.8849750876426696,
+          "relative_mad": 0.004539632678057231
+        }
+      }
+    }
+  },
+  "ratios": [
+    {
+      "batch": 8,
+      "metric": "seconds",
+      "numerator": "default-a",
+      "denominator": "baseline",
+      "ratio": 1.0499022314656767,
+      "percent_change": 4.990223146567674
+    },
+    {
+      "batch": 8,
+      "metric": "seconds",
+      "numerator": "default-b",
+      "denominator": "default-a",
+      "ratio": 0.9969288612310274,
+      "percent_change": -0.3071138768972581
+    },
+    {
+      "batch": 8,
+      "metric": "seconds",
+      "numerator": "fp16-b",
+      "denominator": "fp16-a",
+      "ratio": 0.8959773732245233,
+      "percent_change": -10.402262677547668
+    },
+    {
+      "batch": 8,
+      "metric": "seconds",
+      "numerator": "fp16-a",
+      "denominator": "default-a",
+      "ratio": 1.054200592483929,
+      "percent_change": 5.4200592483929055
+    },
+    {
+      "batch": 8,
+      "metric": "seconds",
+      "numerator": "fp16-a",
+      "denominator": "default-b",
+      "ratio": 1.0574481625320602,
+      "percent_change": 5.74481625320602
+    },
+    {
+      "batch": 8,
+      "metric": "seconds",
+      "numerator": "fp16-b",
+      "denominator": "default-a",
+      "ratio": 0.9445398777054869,
+      "percent_change": -5.546012229451314
+    },
+    {
+      "batch": 8,
+      "metric": "seconds",
+      "numerator": "fp16-b",
+      "denominator": "default-b",
+      "ratio": 0.947449626986574,
+      "percent_change": -5.255037301342602
+    },
+    {
+      "batch": 8,
+      "metric": "mean_tpot_seconds",
+      "numerator": "default-a",
+      "denominator": "baseline",
+      "ratio": 1.027003213842548,
+      "percent_change": 2.7003213842548
+    },
+    {
+      "batch": 8,
+      "metric": "mean_tpot_seconds",
+      "numerator": "default-b",
+      "denominator": "default-a",
+      "ratio": 0.9986530907741745,
+      "percent_change": -0.13469092258254767
+    },
+    {
+      "batch": 8,
+      "metric": "mean_tpot_seconds",
+      "numerator": "fp16-b",
+      "denominator": "fp16-a",
+      "ratio": 0.9410071555234271,
+      "percent_change": -5.899284447657294
+    },
+    {
+      "batch": 8,
+      "metric": "mean_tpot_seconds",
+      "numerator": "fp16-a",
+      "denominator": "default-a",
+      "ratio": 1.0242716904289413,
+      "percent_change": 2.4271690428941284
+    },
+    {
+      "batch": 8,
+      "metric": "mean_tpot_seconds",
+      "numerator": "fp16-a",
+      "denominator": "default-b",
+      "ratio": 1.0256531521220313,
+      "percent_change": 2.565315212203134
+    },
+    {
+      "batch": 8,
+      "metric": "mean_tpot_seconds",
+      "numerator": "fp16-b",
+      "denominator": "default-a",
+      "ratio": 0.9638469898937103,
+      "percent_change": -3.6153010106289685
+    },
+    {
+      "batch": 8,
+      "metric": "mean_tpot_seconds",
+      "numerator": "fp16-b",
+      "denominator": "default-b",
+      "ratio": 0.9651469552319896,
+      "percent_change": -3.4853044768010433
+    },
+    {
+      "batch": 8,
+      "metric": "mean_ttft_seconds",
+      "numerator": "default-a",
+      "denominator": "baseline",
+      "ratio": 1.145038560265322,
+      "percent_change": 14.50385602653219
+    },
+    {
+      "batch": 8,
+      "metric": "mean_ttft_seconds",
+      "numerator": "default-b",
+      "denominator": "default-a",
+      "ratio": 0.9895202813306019,
+      "percent_change": -1.047971866939812
+    },
+    {
+      "batch": 8,
+      "metric": "mean_ttft_seconds",
+      "numerator": "fp16-b",
+      "denominator": "fp16-a",
+      "ratio": 0.7482866021069784,
+      "percent_change": -25.17133978930216
+    },
+    {
+      "batch": 8,
+      "metric": "mean_ttft_seconds",
+      "numerator": "fp16-a",
+      "denominator": "default-a",
+      "ratio": 1.165103553557041,
+      "percent_change": 16.51035535570411
+    },
+    {
+      "batch": 8,
+      "metric": "mean_ttft_seconds",
+      "numerator": "fp16-a",
+      "denominator": "default-b",
+      "ratio": 1.1774428230923508,
+      "percent_change": 17.744282309235082
+    },
+    {
+      "batch": 8,
+      "metric": "mean_ttft_seconds",
+      "numerator": "fp16-b",
+      "denominator": "default-a",
+      "ratio": 0.8718313791939644,
+      "percent_change": -12.816862080603563
+    },
+    {
+      "batch": 8,
+      "metric": "mean_ttft_seconds",
+      "numerator": "fp16-b",
+      "denominator": "default-b",
+      "ratio": 0.8810646892670234,
+      "percent_change": -11.893531073297659
+    },
+    {
+      "batch": 40,
+      "metric": "seconds",
+      "numerator": "default-a",
+      "denominator": "baseline",
+      "ratio": 1.0019242362068825,
+      "percent_change": 0.19242362068825347
+    },
+    {
+      "batch": 40,
+      "metric": "seconds",
+      "numerator": "default-b",
+      "denominator": "default-a",
+      "ratio": 1.0724415046053215,
+      "percent_change": 7.2441504605321505
+    },
+    {
+      "batch": 40,
+      "metric": "seconds",
+      "numerator": "fp16-b",
+      "denominator": "fp16-a",
+      "ratio": 0.8966772616216288,
+      "percent_change": -10.332273837837125
+    },
+    {
+      "batch": 40,
+      "metric": "seconds",
+      "numerator": "fp16-a",
+      "denominator": "default-a",
+      "ratio": 1.0982771958018664,
+      "percent_change": 9.827719580186645
+    },
+    {
+      "batch": 40,
+      "metric": "seconds",
+      "numerator": "fp16-a",
+      "denominator": "default-b",
+      "ratio": 1.024090536486699,
+      "percent_change": 2.409053648669901
+    },
+    {
+      "batch": 40,
+      "metric": "seconds",
+      "numerator": "fp16-b",
+      "denominator": "default-a",
+      "ratio": 0.984800188433099,
+      "percent_change": -1.5199811566900978
+    },
+    {
+      "batch": 40,
+      "metric": "seconds",
+      "numerator": "fp16-b",
+      "denominator": "default-b",
+      "ratio": 0.9182786979095181,
+      "percent_change": -8.17213020904819
+    },
+    {
+      "batch": 40,
+      "metric": "mean_tpot_seconds",
+      "numerator": "default-a",
+      "denominator": "baseline",
+      "ratio": 1.0001539354154252,
+      "percent_change": 0.015393541542518818
+    },
+    {
+      "batch": 40,
+      "metric": "mean_tpot_seconds",
+      "numerator": "default-b",
+      "denominator": "default-a",
+      "ratio": 1.047578338668716,
+      "percent_change": 4.757833866871608
+    },
+    {
+      "batch": 40,
+      "metric": "mean_tpot_seconds",
+      "numerator": "fp16-b",
+      "denominator": "fp16-a",
+      "ratio": 0.9264679314286071,
+      "percent_change": -7.353206857139294
+    },
+    {
+      "batch": 40,
+      "metric": "mean_tpot_seconds",
+      "numerator": "fp16-a",
+      "denominator": "default-a",
+      "ratio": 1.0616827890114475,
+      "percent_change": 6.1682789011447525
+    },
+    {
+      "batch": 40,
+      "metric": "mean_tpot_seconds",
+      "numerator": "fp16-a",
+      "denominator": "default-b",
+      "ratio": 1.0134638621495893,
+      "percent_change": 1.3463862149589279
+    },
+    {
+      "batch": 40,
+      "metric": "mean_tpot_seconds",
+      "numerator": "fp16-b",
+      "denominator": "default-a",
+      "ratio": 0.98361505736879,
+      "percent_change": -1.6384942631210042
+    },
+    {
+      "batch": 40,
+      "metric": "mean_tpot_seconds",
+      "numerator": "fp16-b",
+      "denominator": "default-b",
+      "ratio": 0.9389417679433769,
+      "percent_change": -6.1058232056623085
+    },
+    {
+      "batch": 40,
+      "metric": "mean_ttft_seconds",
+      "numerator": "default-a",
+      "denominator": "baseline",
+      "ratio": 1.0081725538818824,
+      "percent_change": 0.8172553881882427
+    },
+    {
+      "batch": 40,
+      "metric": "mean_ttft_seconds",
+      "numerator": "default-b",
+      "denominator": "default-a",
+      "ratio": 1.1293202829256404,
+      "percent_change": 12.932028292564034
+    },
+    {
+      "batch": 40,
+      "metric": "mean_ttft_seconds",
+      "numerator": "fp16-b",
+      "denominator": "fp16-a",
+      "ratio": 0.8257355636214939,
+      "percent_change": -17.426443637850607
+    },
+    {
+      "batch": 40,
+      "metric": "mean_ttft_seconds",
+      "numerator": "fp16-a",
+      "denominator": "default-a",
+      "ratio": 1.1918287207976004,
+      "percent_change": 19.18287207976004
+    },
+    {
+      "batch": 40,
+      "metric": "mean_ttft_seconds",
+      "numerator": "fp16-a",
+      "denominator": "default-b",
+      "ratio": 1.0553504960612452,
+      "percent_change": 5.53504960612452
+    },
+    {
+      "batch": 40,
+      "metric": "mean_ttft_seconds",
+      "numerator": "fp16-b",
+      "denominator": "default-a",
+      "ratio": 0.9841353605080907,
+      "percent_change": -1.5864639491909305
+    },
+    {
+      "batch": 40,
+      "metric": "mean_ttft_seconds",
+      "numerator": "fp16-b",
+      "denominator": "default-b",
+      "ratio": 0.8714404366833556,
+      "percent_change": -12.855956331664443
+    }
+  ],
+  "interpretation": "Offline full-model fixed-work latency. Mean TPOT includes scheduler/overlap time. Local gates are not upstream policy. No serving QPS or p99 ITL inference. GPU telemetry and exact physical GPU identity require separate orchestration audit."
+}

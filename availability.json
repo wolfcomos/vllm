@@ -1,0 +1,76 @@
+{
+  "runtime": {
+    "state": "available"
+  },
+  "tests/status": {
+    "state": "available"
+  },
+  "tests/baseline": {
+    "state": "available"
+  },
+  "tests/candidate": {
+    "state": "available"
+  },
+  "gsm8k/baseline": {
+    "state": "available",
+    "source_status": "complete"
+  },
+  "gsm8k/bf16": {
+    "state": "available",
+    "source_status": "complete"
+  },
+  "gsm8k/fp16": {
+    "state": "available",
+    "source_status": "complete"
+  },
+  "gsm8k/comparison": {
+    "state": "available"
+  },
+  "e2e/baseline": {
+    "state": "unavailable",
+    "reason": "No collected artifact"
+  },
+  "e2e/default-a": {
+    "state": "unavailable",
+    "reason": "No collected artifact"
+  },
+  "e2e/fp16-a": {
+    "state": "unavailable",
+    "reason": "No collected artifact"
+  },
+  "e2e/fp16-b": {
+    "state": "unavailable",
+    "reason": "No collected artifact"
+  },
+  "e2e/default-b": {
+    "state": "unavailable",
+    "reason": "No collected artifact"
+  },
+  "e2e/cutlass": {
+    "state": "unavailable",
+    "reason": "No collected artifact"
+  },
+  "e2e/comparison": {
+    "state": "unavailable",
+    "reason": "No collected artifact"
+  },
+  "telemetry/gsm8k": {
+    "state": "available",
+    "scope": "gsm8k",
+    "sample_rows": 13708,
+    "throttle_bitmask_column_present": false,
+    "throttle_bitmask_columns": [],
+    "numeric_throttle_bitmask_rows": {},
+    "timestamp_scope": "NVSMI naive timestamp retained; no timezone conversion inferred by this projector"
+  },
+  "telemetry/e2e": {
+    "state": "unavailable",
+    "reason": "No collected sampler CSV",
+    "scope": "e2e"
+  },
+  "history/v3": {
+    "state": "available",
+    "files": 13,
+    "original_performance_passed": false
+  }
+}

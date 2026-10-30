@@ -1,182 +1,3305 @@
 {
-  "audited_at_utc": "2026-10-28T20:43:48.983714+00:00",
-  "passed": true,
-  "source_hashes_match_exact_git_commits": {
+  "scope": "Full original attention suites, without test filtering",
+  "arms": {
     "baseline": {
-      "commit": "9731f30a030c545e7f29a8a4ed96b8562be12c88",
-      "source_files": 5,
-      "test_files": 4
+      "counts": {
+        "passed": 213,
+        "failed": 0,
+        "error": 0,
+        "skipped": 51
+      },
+      "case_count": 264,
+      "cases": [
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[19-128-query_dtype0-cache_dtype0-True-expected0]",
+          "status": "passed",
+          "seconds": 0.643
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[20-128-query_dtype1-cache_dtype1-True-expected1]",
+          "status": "passed",
+          "seconds": 0.524
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[32-128-query_dtype2-cache_dtype2-True-expected2]",
+          "status": "passed",
+          "seconds": 0.521
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[33-128-query_dtype3-cache_dtype3-True-expected3]",
+          "status": "passed",
+          "seconds": 0.518
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[64-128-query_dtype4-cache_dtype4-True-expected4]",
+          "status": "passed",
+          "seconds": 0.527
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[65-128-query_dtype5-cache_dtype5-True-expected5]",
+          "status": "passed",
+          "seconds": 0.528
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[20-128-query_dtype6-cache_dtype6-False-expected6]",
+          "status": "passed",
+          "seconds": 0.539
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[20-64-query_dtype7-cache_dtype7-True-expected7]",
+          "status": "passed",
+          "seconds": 0.537
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[20-128-query_dtype8-cache_dtype8-True-expected8]",
+          "status": "passed",
+          "seconds": 0.545
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[20-128-query_dtype9-cache_dtype9-True-expected9]",
+          "status": "passed",
+          "seconds": 0.544
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[1]",
+          "status": "passed",
+          "seconds": 0.548
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[2]",
+          "status": "passed",
+          "seconds": 0.549
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[3]",
+          "status": "passed",
+          "seconds": 0.545
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[4]",
+          "status": "passed",
+          "seconds": 0.55
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[5]",
+          "status": "passed",
+          "seconds": 0.549
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[6]",
+          "status": "passed",
+          "seconds": 0.556
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[7]",
+          "status": "passed",
+          "seconds": 0.549
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[8]",
+          "status": "passed",
+          "seconds": 0.553
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[9]",
+          "status": "passed",
+          "seconds": 0.549
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[10]",
+          "status": "passed",
+          "seconds": 0.559
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[11]",
+          "status": "passed",
+          "seconds": 0.552
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[1-37-1-1-1-1-0]",
+          "status": "skipped",
+          "seconds": 0.001
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[8-37-1-1-4-2-1]",
+          "status": "skipped",
+          "seconds": 0.001
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[9-37-1-4-4-0-2]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[11-37-1-3-5-1-3]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[1-37-2-1-1-2-0]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[8-37-2-1-4-0-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[9-37-2-4-4-1-2]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[11-37-2-3-5-2-3]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[1-37-4-1-1-0-0]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[8-37-4-1-4-1-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[9-37-4-4-4-2-2]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[11-37-4-3-5-0-3]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[20-65-1-4-4-1-3]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[36-65-1-4-4-2-2]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[64-65-1-4-4-0-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_sparse_impl_uses_platform_fp8_dtype[fp8-expected_dtype0]",
+          "status": "passed",
+          "seconds": 0.555
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_sparse_impl_uses_platform_fp8_dtype[fp8_e4m3-expected_dtype1]",
+          "status": "passed",
+          "seconds": 0.556
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_sparse_impl_uses_platform_fp8_dtype[fp8_e5m2-expected_dtype2]",
+          "status": "passed",
+          "seconds": 0.556
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_sparse_kernels_recognize_fp8_dtypes[dtype0]",
+          "status": "passed",
+          "seconds": 0.557
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_sparse_kernels_recognize_fp8_dtypes[dtype1]",
+          "status": "passed",
+          "seconds": 0.556
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_sparse_kernels_recognize_fp8_dtypes[dtype2]",
+          "status": "passed",
+          "seconds": 0.556
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_sparse_kernels_recognize_fp8_dtypes[dtype3]",
+          "status": "passed",
+          "seconds": 0.55
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_index_topk_correctness[80-1024]",
+          "status": "passed",
+          "seconds": 18.961
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_index_topk_correctness[80-3600]",
+          "status": "passed",
+          "seconds": 0.534
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_index_topk_correctness[90-1024]",
+          "status": "passed",
+          "seconds": 0.962
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_index_topk_correctness[90-3600]",
+          "status": "passed",
+          "seconds": 0.524
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_index_topk_correctness[120-1024]",
+          "status": "passed",
+          "seconds": 0.525
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_index_topk_correctness[120-3600]",
+          "status": "passed",
+          "seconds": 0.53
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_fmha_sm100_indexer_matches_reference[q_lens0-prefix_lens0-index_dtype0]",
+          "status": "passed",
+          "seconds": 114.313
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_fmha_sm100_indexer_matches_reference[q_lens0-prefix_lens0-index_dtype1]",
+          "status": "passed",
+          "seconds": 74.582
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_fmha_sm100_indexer_matches_reference[q_lens1-prefix_lens1-index_dtype0]",
+          "status": "passed",
+          "seconds": 0.548
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_fmha_sm100_indexer_matches_reference[q_lens1-prefix_lens1-index_dtype1]",
+          "status": "passed",
+          "seconds": 0.559
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_msa_indexer_impl_matches_triton[index_dtype0-16]",
+          "status": "passed",
+          "seconds": 129.526
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_msa_indexer_impl_matches_triton[index_dtype1-16]",
+          "status": "passed",
+          "seconds": 76.86
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_indexer_impl_matches_reference[0-0-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_indexer_impl_matches_reference[0-0-2]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_indexer_impl_matches_reference[1-2-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_indexer_impl_matches_reference[1-2-2]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_gather_nvfp4_index_k_fp8_bitwise[0.5-False]",
+          "status": "passed",
+          "seconds": 1.532
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_gather_nvfp4_index_k_fp8_bitwise[0.5-True]",
+          "status": "skipped",
+          "seconds": 0.564
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_gather_nvfp4_index_k_fp8_bitwise[448.0-False]",
+          "status": "passed",
+          "seconds": 0.614
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_gather_nvfp4_index_k_fp8_bitwise[448.0-True]",
+          "status": "skipped",
+          "seconds": 0.547
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_impl_matches_reference[1-1]",
+          "status": "passed",
+          "seconds": 54.922
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_impl_matches_reference[1-2]",
+          "status": "passed",
+          "seconds": 1.704
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_impl_matches_reference[1-4]",
+          "status": "passed",
+          "seconds": 1.435
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_impl_matches_reference[3-1]",
+          "status": "passed",
+          "seconds": 0.969
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_impl_matches_reference[3-2]",
+          "status": "passed",
+          "seconds": 0.706
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_impl_matches_reference[3-4]",
+          "status": "passed",
+          "seconds": 0.684
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_impl_matches_reference[8-1]",
+          "status": "passed",
+          "seconds": 1.008
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_impl_matches_reference[8-2]",
+          "status": "passed",
+          "seconds": 0.676
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_impl_matches_reference[8-4]",
+          "status": "passed",
+          "seconds": 0.686
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_decode_cuda_graph_replay[1-1]",
+          "status": "passed",
+          "seconds": 0.794
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_decode_cuda_graph_replay[1-3]",
+          "status": "passed",
+          "seconds": 0.694
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_decode_cuda_graph_replay[1-8]",
+          "status": "passed",
+          "seconds": 0.703
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_decode_cuda_graph_replay[2-1]",
+          "status": "passed",
+          "seconds": 0.735
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_decode_cuda_graph_replay[2-3]",
+          "status": "passed",
+          "seconds": 0.697
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_decode_cuda_graph_replay[2-8]",
+          "status": "passed",
+          "seconds": 0.75
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_decode_cuda_graph_replay[4-1]",
+          "status": "passed",
+          "seconds": 0.732
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_decode_cuda_graph_replay[4-3]",
+          "status": "passed",
+          "seconds": 0.703
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_decode_cuda_graph_replay[4-8]",
+          "status": "passed",
+          "seconds": 0.709
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_topk_correctness[0-1-1]",
+          "status": "passed",
+          "seconds": 10.791
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_topk_correctness[0-1-4]",
+          "status": "passed",
+          "seconds": 0.803
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_topk_correctness[0-4-4]",
+          "status": "passed",
+          "seconds": 2.952
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_topk_correctness[2-1-1]",
+          "status": "passed",
+          "seconds": 0.592
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_topk_correctness[2-1-4]",
+          "status": "passed",
+          "seconds": 0.587
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_topk_correctness[2-4-4]",
+          "status": "passed",
+          "seconds": 1.589
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[0-24-1-16-True-expected0]",
+          "status": "passed",
+          "seconds": 0.583
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[1-1-1-16-True-expected1]",
+          "status": "passed",
+          "seconds": 0.595
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[74-4-1-16-True-expected2]",
+          "status": "passed",
+          "seconds": 0.589
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[128-4-1-16-True-expected3]",
+          "status": "passed",
+          "seconds": 0.585
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[129-4-1-16-True-expected4]",
+          "status": "passed",
+          "seconds": 0.585
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[512-4-1-16-True-expected5]",
+          "status": "passed",
+          "seconds": 0.574
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[513-24-4-16-True-expected6]",
+          "status": "passed",
+          "seconds": 0.627
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[2760-5-2-16-True-expected7]",
+          "status": "passed",
+          "seconds": 0.6
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[8192-64-4-16-True-expected8]",
+          "status": "passed",
+          "seconds": 0.573
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[8193-4-1-16-True-expected9]",
+          "status": "passed",
+          "seconds": 0.576
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[8193-16-1-16-True-expected10]",
+          "status": "passed",
+          "seconds": 0.572
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[65534-64-1-16-True-expected11]",
+          "status": "passed",
+          "seconds": 0.575
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[513-16-1-13-True-expected12]",
+          "status": "passed",
+          "seconds": 0.57
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[513-16-4-16-False-expected13]",
+          "status": "passed",
+          "seconds": 0.574
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[1-False-False-65534-512-8-2-16-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[2-False-False-8193-512-8-2-16-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[4-False-False-8193-512-8-2-16-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[8-False-False-8193-512-8-2-16-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[16-False-False-8193-512-8-2-16-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[16-False-False-65534-512-8-2-16-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[2-True-False-513-512-8-2-13-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[4-False-True-8192-512-4-2-16-2]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[16-True-True-8192-512-4-2-16-4]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[1-True-True-74-128-2-1-16-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_index_topk_end_to_end[1-1-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_index_topk_end_to_end[2-1-4]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_index_topk_end_to_end[4-4-4]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_index_topk_end_to_end[4-3-8]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_topk_fp8[1]",
+          "status": "passed",
+          "seconds": 10.896
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_topk_fp8[4]",
+          "status": "passed",
+          "seconds": 3.18
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_score_cutedsl_correctness[dtype0-1-1-False]",
+          "status": "passed",
+          "seconds": 0.577
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_score_cutedsl_correctness[dtype1-3-8-False]",
+          "status": "passed",
+          "seconds": 1.361
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_score_cutedsl_correctness[dtype2-1-1-False]",
+          "status": "passed",
+          "seconds": 0.575
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_score_cutedsl_correctness[dtype3-3-8-False]",
+          "status": "passed",
+          "seconds": 1.462
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_score_cutedsl_correctness[dtype4-8-8-False]",
+          "status": "passed",
+          "seconds": 0.577
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_score_cutedsl_correctness[concurrent-writes]",
+          "status": "passed",
+          "seconds": 0.642
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_sparse_attention_correctness[q_lens0-kv_lens0-scalar-NHD]",
+          "status": "passed",
+          "seconds": 1.585
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_sparse_attention_correctness[q_lens0-kv_lens0-scalar-HND]",
+          "status": "passed",
+          "seconds": 0.643
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_sparse_attention_correctness[q_lens1-kv_lens1-scalar-NHD]",
+          "status": "passed",
+          "seconds": 0.66
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_sparse_attention_correctness[q_lens1-kv_lens1-scalar-HND]",
+          "status": "passed",
+          "seconds": 0.662
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_main_cache_layout_contract",
+          "status": "passed",
+          "seconds": 0.562
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_sparse_pa_layout_contract[KVCacheLayout.LHBNC]",
+          "status": "passed",
+          "seconds": 0.569
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_sparse_pa_layout_contract[KVCacheLayout.LBHNC]",
+          "status": "passed",
+          "seconds": 0.574
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_sparse_pa_rejects_multiple_kv_heads",
+          "status": "passed",
+          "seconds": 0.576
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_msa_indexer_requires_the_aiter_attend",
+          "status": "passed",
+          "seconds": 0.601
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_enabled",
+          "status": "passed",
+          "seconds": 0.574
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_packed_shuffle_unequal_spans",
+          "status": "passed",
+          "seconds": 0.577
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_dtype_and_layout_mapping[auto-auto-False]",
+          "status": "passed",
+          "seconds": 0.576
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_dtype_and_layout_mapping[fp8-fp8_e4m3_static-True]",
+          "status": "passed",
+          "seconds": 0.576
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_dtype_and_layout_mapping[fp8_e4m3-fp8_e4m3_static-True]",
+          "status": "passed",
+          "seconds": 0.574
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_fp8_index_dtype_mapping",
+          "status": "passed",
+          "seconds": 0.576
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_full_and_skip_index_args[False]",
+          "status": "passed",
+          "seconds": 0.584
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_full_and_skip_index_args[True]",
+          "status": "passed",
+          "seconds": 0.581
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_rejects_fp8_e5m2",
+          "status": "passed",
+          "seconds": 0.585
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_sparse_pa_slot_rebase_preserves_page_offsets",
+          "status": "passed",
+          "seconds": 0.585
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_real_packed_shuffle[False-False]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_real_packed_shuffle[False-True]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_real_packed_shuffle[True-False]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_real_packed_shuffle[True-True]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_indexer_cache_squeezes_to_contiguous_3d",
+          "status": "passed",
+          "seconds": 0.586
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_hnd_allocation_is_packed_head_major",
+          "status": "passed",
+          "seconds": 0.588
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_main_cache_is_block_first_and_unpadded",
+          "status": "passed",
+          "seconds": 0.579
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_sparse_block_table_handles_padded_decode_rows",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_decode_sparse_block_table_supports_spec_decode",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list0-8]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list0-16]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list1-8]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list1-16]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list2-8]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list2-16]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list3-8]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list3-16]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list4-8]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list4-16]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-1-seq_lens_list0-NHD]",
+          "status": "passed",
+          "seconds": 1.646
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-1-seq_lens_list0-HND]",
+          "status": "passed",
+          "seconds": 0.6
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-1-seq_lens_list1-NHD]",
+          "status": "passed",
+          "seconds": 0.602
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-1-seq_lens_list1-HND]",
+          "status": "passed",
+          "seconds": 0.6
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-4-seq_lens_list0-NHD]",
+          "status": "passed",
+          "seconds": 0.602
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-4-seq_lens_list0-HND]",
+          "status": "passed",
+          "seconds": 0.605
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-4-seq_lens_list1-NHD]",
+          "status": "passed",
+          "seconds": 1.21
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-4-seq_lens_list1-HND]",
+          "status": "passed",
+          "seconds": 0.611
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-1-seq_lens_list0-NHD]",
+          "status": "passed",
+          "seconds": 0.596
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-1-seq_lens_list0-HND]",
+          "status": "passed",
+          "seconds": 0.598
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-1-seq_lens_list1-NHD]",
+          "status": "passed",
+          "seconds": 0.601
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-1-seq_lens_list1-HND]",
+          "status": "passed",
+          "seconds": 0.598
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-4-seq_lens_list0-NHD]",
+          "status": "passed",
+          "seconds": 1.117
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-4-seq_lens_list0-HND]",
+          "status": "passed",
+          "seconds": 0.604
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-4-seq_lens_list1-NHD]",
+          "status": "passed",
+          "seconds": 1.234
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-4-seq_lens_list1-HND]",
+          "status": "passed",
+          "seconds": 0.604
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[sentinel-split-k-False-NHD]",
+          "status": "passed",
+          "seconds": 1.933
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[sentinel-split-k-False-HND]",
+          "status": "passed",
+          "seconds": 0.599
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[sentinel-split-k-True-NHD]",
+          "status": "passed",
+          "seconds": 0.601
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[sentinel-split-k-True-HND]",
+          "status": "passed",
+          "seconds": 0.59
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[sentinel-single-chunk-False-NHD]",
+          "status": "passed",
+          "seconds": 1.147
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[sentinel-single-chunk-False-HND]",
+          "status": "passed",
+          "seconds": 0.593
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[sentinel-single-chunk-True-NHD]",
+          "status": "passed",
+          "seconds": 0.598
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[sentinel-single-chunk-True-HND]",
+          "status": "passed",
+          "seconds": 0.596
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[out-of-range-split-k-False-NHD]",
+          "status": "passed",
+          "seconds": 0.594
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[out-of-range-split-k-False-HND]",
+          "status": "passed",
+          "seconds": 0.594
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[out-of-range-split-k-True-NHD]",
+          "status": "passed",
+          "seconds": 0.599
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[out-of-range-split-k-True-HND]",
+          "status": "passed",
+          "seconds": 0.601
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[out-of-range-single-chunk-False-NHD]",
+          "status": "passed",
+          "seconds": 0.596
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[out-of-range-single-chunk-False-HND]",
+          "status": "passed",
+          "seconds": 0.609
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[out-of-range-single-chunk-True-NHD]",
+          "status": "passed",
+          "seconds": 0.606
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[out-of-range-single-chunk-True-HND]",
+          "status": "passed",
+          "seconds": 0.597
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_wrong_layout_breaks_parity",
+          "status": "passed",
+          "seconds": 0.599
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_main_cache_byte_identical_through_production_allocator",
+          "status": "passed",
+          "seconds": 0.589
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_padded_main_cache_is_flagged",
+          "status": "passed",
+          "seconds": 0.588
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_reshape_and_cache_flash_write_persists[NHD]",
+          "status": "passed",
+          "seconds": 0.947
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_reshape_and_cache_flash_write_persists[HND]",
+          "status": "passed",
+          "seconds": 0.604
+        },
+        {
+          "classname": "tests.kernels.test_minimax_m3_sparse_attn_fp8_scale",
+          "name": "test_minimax_m3_sparse_prefill_fp8_kv_scales[scalar-scalar]",
+          "status": "passed",
+          "seconds": 2.847
+        },
+        {
+          "classname": "tests.kernels.test_minimax_m3_sparse_attn_fp8_scale",
+          "name": "test_minimax_m3_sparse_prefill_fp8_kv_scales[scalar-per_token_head]",
+          "status": "passed",
+          "seconds": 1.808
+        },
+        {
+          "classname": "tests.kernels.test_minimax_m3_sparse_attn_fp8_scale",
+          "name": "test_minimax_m3_sparse_decode_fp8_kv_scales[scalar]",
+          "status": "passed",
+          "seconds": 2.921
+        },
+        {
+          "classname": "tests.kernels.test_minimax_m3_sparse_attn_fp8_scale",
+          "name": "test_minimax_m3_sparse_decode_fp8_kv_scales[per_token_head]",
+          "status": "passed",
+          "seconds": 1.857
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_fp8_triton_indexer",
+          "name": "test_fp8_index_query_and_cache_decode_topk_matches_bf16",
+          "status": "passed",
+          "seconds": 1.095
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_fp8_triton_indexer",
+          "name": "test_fp8_index_query_and_cache_prefill_topk_matches_bf16",
+          "status": "passed",
+          "seconds": 1.788
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_fp8_triton_indexer",
+          "name": "test_bf16_query_against_fp8_cache_decode_topk_matches_bf16",
+          "status": "passed",
+          "seconds": 0.866
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[qlen1-below-row-floor]",
+          "status": "passed",
+          "seconds": 0.581
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[qlen1-at-row-floor]",
+          "status": "passed",
+          "seconds": 0.584
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[qlen3-below-row-floor]",
+          "status": "passed",
+          "seconds": 0.581
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[qlen3-at-row-floor]",
+          "status": "passed",
+          "seconds": 0.587
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[qlen4-below-row-floor]",
+          "status": "passed",
+          "seconds": 0.582
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[qlen4-at-row-floor]",
+          "status": "passed",
+          "seconds": 0.585
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[qlen8-below-row-floor]",
+          "status": "passed",
+          "seconds": 0.59
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[qlen8-at-row-floor]",
+          "status": "passed",
+          "seconds": 0.592
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[unmeasured-query-length]",
+          "status": "passed",
+          "seconds": 0.593
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[unmeasured-heads]",
+          "status": "passed",
+          "seconds": 0.589
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[sm100-keeps-old-floor]",
+          "status": "passed",
+          "seconds": 0.593
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[query-len-upper-bound]",
+          "status": "passed",
+          "seconds": 0.597
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[query-len-zero]",
+          "status": "passed",
+          "seconds": 0.592
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[query-len-above-bound]",
+          "status": "passed",
+          "seconds": 0.597
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_requires_opt_in",
+          "status": "passed",
+          "seconds": 0.602
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_accepts_fp8_alias",
+          "status": "passed",
+          "seconds": 0.598
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_requires_fp8_e4m3[auto]",
+          "status": "passed",
+          "seconds": 0.613
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_requires_fp8_e4m3[bfloat16]",
+          "status": "passed",
+          "seconds": 0.597
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_requires_fp8_e4m3[float16]",
+          "status": "passed",
+          "seconds": 0.596
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_requires_fp8_e4m3[fp8_e5m2]",
+          "status": "passed",
+          "seconds": 0.672
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_requires_sm100",
+          "status": "passed",
+          "seconds": 0.603
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_query_head_limits",
+          "status": "passed",
+          "seconds": 0.589
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_nvfp4_has_no_fallback[cutlass]",
+          "status": "passed",
+          "seconds": 0.582
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_nvfp4_has_no_fallback[triton]",
+          "status": "passed",
+          "seconds": 0.582
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_nvfp4_selects_msa_nvfp4_backend_and_requires_sm100",
+          "status": "passed",
+          "seconds": 0.576
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_attention_backend_alias[None-cutlass]",
+          "status": "passed",
+          "seconds": 0.578
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_attention_backend_alias[AttentionBackendEnum.CUTLASS_MSA-cutlass]",
+          "status": "passed",
+          "seconds": 0.575
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_attention_backend_alias[AttentionBackendEnum.TRITON_MSA-triton]",
+          "status": "passed",
+          "seconds": 0.574
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_backend_owns_msa_metadata_builder",
+          "status": "passed",
+          "seconds": 0.58
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_metadata_builder_prepares_cutlass_for_regular_decode",
+          "status": "passed",
+          "seconds": 0.574
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_metadata_builder_reserves_prefill_workspace_only_on_sm107[True]",
+          "status": "passed",
+          "seconds": 57.574
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_metadata_builder_reserves_prefill_workspace_only_on_sm107[False]",
+          "status": "passed",
+          "seconds": 0.565
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_plan_cache_keys_query_len",
+          "status": "passed",
+          "seconds": 0.882
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_query_stays_valid_when_cutlass_plan_appears_on_replay",
+          "status": "passed",
+          "seconds": 0.57
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp1-query-len-1]",
+          "status": "passed",
+          "seconds": 131.551
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp1-query-len-2]",
+          "status": "passed",
+          "seconds": 101.604
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp1-query-len-3]",
+          "status": "passed",
+          "seconds": 1.395
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp1-query-len-4]",
+          "status": "passed",
+          "seconds": 0.661
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp1-query-len-8]",
+          "status": "passed",
+          "seconds": 0.67
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp4-query-len-1]",
+          "status": "passed",
+          "seconds": 1.338
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp4-query-len-4]",
+          "status": "passed",
+          "seconds": 0.688
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp1-batch-4-query-len-4]",
+          "status": "passed",
+          "seconds": 0.658
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp2-batch-8-query-len-4]",
+          "status": "passed",
+          "seconds": 0.677
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp4-batch-16-query-len-4]",
+          "status": "passed",
+          "seconds": 0.604
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_nvfp4_kv_cache_views_address_head_slots",
+          "status": "passed",
+          "seconds": 0.58
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_nvfp4_matches_triton_on_dequantized_cache[tp1-small-batch-query-len-1]",
+          "status": "passed",
+          "seconds": 58.338
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_nvfp4_matches_triton_on_dequantized_cache[tp1-query-len-8]",
+          "status": "passed",
+          "seconds": 1.593
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_nvfp4_matches_triton_on_dequantized_cache[tp4-query-len-4]",
+          "status": "passed",
+          "seconds": 41.179
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_nvfp4_matches_triton_on_dequantized_cache[tp4-query-len-8-1024-requests]",
+          "status": "passed",
+          "seconds": 1.162
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_prefill_nvfp4_matches_triton_on_dequantized_cache[tp1]",
+          "status": "passed",
+          "seconds": 61.859
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_prefill_nvfp4_matches_triton_on_dequantized_cache[tp4]",
+          "status": "passed",
+          "seconds": 1.493
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_prefill_nvfp4_uses_the_builders_workspace[tp1]",
+          "status": "passed",
+          "seconds": 1.375
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_prefill_nvfp4_uses_the_builders_workspace[tp4]",
+          "status": "passed",
+          "seconds": 0.621
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_prefill_reads_the_e4m3_query_over_an_fp8_cache[tp1]",
+          "status": "passed",
+          "seconds": 4.829
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_prefill_reads_the_e4m3_query_over_an_fp8_cache[tp4]",
+          "status": "passed",
+          "seconds": 1.383
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_nvfp4_kv_cache_never_takes_a_bf16_query",
+          "status": "passed",
+          "seconds": 0.567
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_nvfp4_kv_cache_with_tp8_fails_at_config_time[MiniMaxM3SparseForCausalLM]",
+          "status": "passed",
+          "seconds": 0.562
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_nvfp4_kv_cache_with_tp8_fails_at_config_time[MiniMaxM3SparseForConditionalGeneration]",
+          "status": "passed",
+          "seconds": 0.568
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_triton_decode_fallback_reads_dequantized_query_fp8",
+          "status": "passed",
+          "seconds": 1.372
+        }
+      ],
+      "exit_code": 0
     },
     "candidate": {
-      "commit": "faf31b04c73400c2af770c280fb8d739a5997fcb",
-      "source_files": 5,
-      "test_files": 4
-    },
-    "old": {
-      "commit": "4df6ebd262af62f984626f7b9bb5c5179b7def28",
-      "source_files": 5,
-      "test_files": 4
-    }
-  },
-  "suites": [
-    {
-      "arm": "baseline",
-      "suite": "test_minimax_m3",
-      "tests": 171,
-      "errors": 0,
-      "failures": 0,
-      "skipped": 46,
-      "passed": 125,
-      "seconds": 423.5701262950897
-    },
-    {
-      "arm": "baseline",
-      "suite": "test_minimax_m3_sparse_attn_fp8_scale",
-      "tests": 4,
-      "errors": 0,
-      "failures": 0,
-      "skipped": 0,
-      "passed": 4,
-      "seconds": 22.89132046699524
-    },
-    {
-      "arm": "baseline",
-      "suite": "test_minimax_m3_fp8_triton_indexer",
-      "tests": 3,
-      "errors": 0,
-      "failures": 0,
-      "skipped": 0,
-      "passed": 3,
-      "seconds": 18.035781383514404
-    },
-    {
-      "arm": "baseline",
-      "suite": "test_minimax_m3_msa_cutlass_sparse_decode",
-      "tests": 49,
-      "errors": 0,
-      "failures": 0,
-      "skipped": 0,
-      "passed": 49,
-      "seconds": 463.61766171455383
-    },
-    {
-      "arm": "candidate",
-      "suite": "test_minimax_m3",
-      "tests": 179,
-      "errors": 0,
-      "failures": 0,
-      "skipped": 46,
-      "passed": 133,
-      "seconds": 357.3038499355316
-    },
-    {
-      "arm": "candidate",
-      "suite": "test_minimax_m3_sparse_attn_fp8_scale",
-      "tests": 14,
-      "errors": 0,
-      "failures": 0,
-      "skipped": 0,
-      "passed": 14,
-      "seconds": 28.79891014099121
-    },
-    {
-      "arm": "candidate",
-      "suite": "test_minimax_m3_fp8_triton_indexer",
-      "tests": 3,
-      "errors": 0,
-      "failures": 0,
-      "skipped": 0,
-      "passed": 3,
-      "seconds": 17.235119342803955
-    },
-    {
-      "arm": "candidate",
-      "suite": "test_minimax_m3_msa_cutlass_sparse_decode",
-      "tests": 49,
-      "errors": 0,
-      "failures": 0,
-      "skipped": 0,
-      "passed": 49,
-      "seconds": 449.24831771850586
-    }
-  ],
-  "totals": {
-    "baseline": {
-      "tests": 227,
-      "errors": 0,
-      "failures": 0,
-      "skipped": 46,
-      "passed": 181
-    },
-    "candidate": {
-      "tests": 245,
-      "errors": 0,
-      "failures": 0,
-      "skipped": 46,
-      "passed": 199
-    }
-  },
-  "original_cases_preserved": [
-    {
-      "suite": "test_minimax_m3",
-      "original_cases": 171,
-      "added_cases": 8,
-      "skip_sets_and_reasons_identical": true
-    },
-    {
-      "suite": "test_minimax_m3_sparse_attn_fp8_scale",
-      "original_cases": 4,
-      "added_cases": 10,
-      "skip_sets_and_reasons_identical": true
-    },
-    {
-      "suite": "test_minimax_m3_fp8_triton_indexer",
-      "original_cases": 3,
-      "added_cases": 0,
-      "skip_sets_and_reasons_identical": true
-    },
-    {
-      "suite": "test_minimax_m3_msa_cutlass_sparse_decode",
-      "original_cases": 49,
-      "added_cases": 0,
-      "skip_sets_and_reasons_identical": true
-    }
-  ],
-  "negative_control": {
-    "expected_failure": true,
-    "passed": 2,
-    "failed": 4,
-    "errors": 0,
-    "skipped": 0
-  },
-  "positive_control": {
-    "passed": 6,
-    "failed": 0,
-    "errors": 0,
-    "skipped": 0
-  },
-  "direct_baseline_byte_comparison": {
-    "method": "Independent byte comparison of all tensor storages in torch.save archives; no PyTorch import",
-    "all_equal": true,
-    "storages": [
-      {
-        "id": "0",
-        "bytes": 163840,
-        "equal": true,
-        "sha256": "40dfb80502a4fe25d6f132bed034c7a448847357e67d823947cbab0ef240a8ce"
+      "counts": {
+        "passed": 231,
+        "failed": 0,
+        "error": 0,
+        "skipped": 51
       },
-      {
-        "id": "1",
-        "bytes": 163840,
-        "equal": true,
-        "sha256": "40dfb80502a4fe25d6f132bed034c7a448847357e67d823947cbab0ef240a8ce"
-      },
-      {
-        "id": "2",
-        "bytes": 163840,
-        "equal": true,
-        "sha256": "ca02e491dde38eec1720dd8e70649c35f3b0d3a9fc6bc24138d8bbcc4ba07056"
-      }
-    ]
+      "case_count": 282,
+      "cases": [
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[19-128-query_dtype0-cache_dtype0-True-expected0]",
+          "status": "passed",
+          "seconds": 0.609
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[20-128-query_dtype1-cache_dtype1-True-expected1]",
+          "status": "passed",
+          "seconds": 0.565
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[32-128-query_dtype2-cache_dtype2-True-expected2]",
+          "status": "passed",
+          "seconds": 0.536
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[33-128-query_dtype3-cache_dtype3-True-expected3]",
+          "status": "passed",
+          "seconds": 0.53
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[64-128-query_dtype4-cache_dtype4-True-expected4]",
+          "status": "passed",
+          "seconds": 0.537
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[65-128-query_dtype5-cache_dtype5-True-expected5]",
+          "status": "passed",
+          "seconds": 0.541
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[20-128-query_dtype6-cache_dtype6-False-expected6]",
+          "status": "passed",
+          "seconds": 0.551
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[20-64-query_dtype7-cache_dtype7-True-expected7]",
+          "status": "passed",
+          "seconds": 0.546
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[20-128-query_dtype8-cache_dtype8-True-expected8]",
+          "status": "passed",
+          "seconds": 0.538
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_score_split_launch_policy[20-128-query_dtype9-cache_dtype9-True-expected9]",
+          "status": "passed",
+          "seconds": 0.543
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[1]",
+          "status": "passed",
+          "seconds": 0.539
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[2]",
+          "status": "passed",
+          "seconds": 0.576
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[3]",
+          "status": "passed",
+          "seconds": 0.592
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[4]",
+          "status": "passed",
+          "seconds": 0.564
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[5]",
+          "status": "passed",
+          "seconds": 0.572
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[6]",
+          "status": "passed",
+          "seconds": 0.561
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[7]",
+          "status": "passed",
+          "seconds": 0.562
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[8]",
+          "status": "passed",
+          "seconds": 0.622
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[9]",
+          "status": "passed",
+          "seconds": 0.573
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[10]",
+          "status": "passed",
+          "seconds": 0.554
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_balanced_decode_score_mapping_exact_coverage[11]",
+          "status": "passed",
+          "seconds": 0.542
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[1-37-1-1-1-1-0]",
+          "status": "skipped",
+          "seconds": 0.001
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[8-37-1-1-4-2-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[9-37-1-4-4-0-2]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[11-37-1-3-5-1-3]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[1-37-2-1-1-2-0]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[8-37-2-1-4-0-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[9-37-2-4-4-1-2]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[11-37-2-3-5-2-3]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[1-37-4-1-1-0-0]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[8-37-4-1-4-1-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[9-37-4-4-4-2-2]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[11-37-4-3-5-0-3]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[20-65-1-4-4-1-3]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[36-65-1-4-4-2-2]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_optimized_decode_score_bitwise_and_graph_replay[64-65-1-4-4-0-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_sparse_impl_uses_platform_fp8_dtype[fp8-expected_dtype0]",
+          "status": "passed",
+          "seconds": 0.543
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_sparse_impl_uses_platform_fp8_dtype[fp8_e4m3-expected_dtype1]",
+          "status": "passed",
+          "seconds": 0.541
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_sparse_impl_uses_platform_fp8_dtype[fp8_e5m2-expected_dtype2]",
+          "status": "passed",
+          "seconds": 0.547
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_sparse_kernels_recognize_fp8_dtypes[dtype0]",
+          "status": "passed",
+          "seconds": 0.596
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_sparse_kernels_recognize_fp8_dtypes[dtype1]",
+          "status": "passed",
+          "seconds": 0.586
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_sparse_kernels_recognize_fp8_dtypes[dtype2]",
+          "status": "passed",
+          "seconds": 0.534
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_sparse_kernels_recognize_fp8_dtypes[dtype3]",
+          "status": "passed",
+          "seconds": 0.537
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_index_topk_correctness[80-1024]",
+          "status": "passed",
+          "seconds": 1.673
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_index_topk_correctness[80-3600]",
+          "status": "passed",
+          "seconds": 0.549
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_index_topk_correctness[90-1024]",
+          "status": "passed",
+          "seconds": 0.549
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_index_topk_correctness[90-3600]",
+          "status": "passed",
+          "seconds": 0.544
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_index_topk_correctness[120-1024]",
+          "status": "passed",
+          "seconds": 0.546
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_index_topk_correctness[120-3600]",
+          "status": "passed",
+          "seconds": 0.543
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_fmha_sm100_indexer_matches_reference[q_lens0-prefix_lens0-index_dtype0]",
+          "status": "passed",
+          "seconds": 96.662
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_fmha_sm100_indexer_matches_reference[q_lens0-prefix_lens0-index_dtype1]",
+          "status": "passed",
+          "seconds": 75.237
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_fmha_sm100_indexer_matches_reference[q_lens1-prefix_lens1-index_dtype0]",
+          "status": "passed",
+          "seconds": 0.54
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_fmha_sm100_indexer_matches_reference[q_lens1-prefix_lens1-index_dtype1]",
+          "status": "passed",
+          "seconds": 0.535
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_msa_indexer_impl_matches_triton[index_dtype0-16]",
+          "status": "passed",
+          "seconds": 105.942
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_msa_indexer_impl_matches_triton[index_dtype1-16]",
+          "status": "passed",
+          "seconds": 75.915
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_indexer_impl_matches_reference[0-0-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_indexer_impl_matches_reference[0-0-2]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_indexer_impl_matches_reference[1-2-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_indexer_impl_matches_reference[1-2-2]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_gather_nvfp4_index_k_fp8_bitwise[0.5-False]",
+          "status": "passed",
+          "seconds": 0.666
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_gather_nvfp4_index_k_fp8_bitwise[0.5-True]",
+          "status": "skipped",
+          "seconds": 0.515
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_gather_nvfp4_index_k_fp8_bitwise[448.0-False]",
+          "status": "passed",
+          "seconds": 0.537
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_gather_nvfp4_index_k_fp8_bitwise[448.0-True]",
+          "status": "skipped",
+          "seconds": 0.528
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_impl_matches_reference[1-1]",
+          "status": "passed",
+          "seconds": 52.791
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_impl_matches_reference[1-2]",
+          "status": "passed",
+          "seconds": 0.78
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_impl_matches_reference[1-4]",
+          "status": "passed",
+          "seconds": 0.664
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_impl_matches_reference[3-1]",
+          "status": "passed",
+          "seconds": 0.666
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_impl_matches_reference[3-2]",
+          "status": "passed",
+          "seconds": 0.665
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_impl_matches_reference[3-4]",
+          "status": "passed",
+          "seconds": 0.665
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_impl_matches_reference[8-1]",
+          "status": "passed",
+          "seconds": 0.666
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_impl_matches_reference[8-2]",
+          "status": "passed",
+          "seconds": 0.671
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_impl_matches_reference[8-4]",
+          "status": "passed",
+          "seconds": 0.675
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_decode_cuda_graph_replay[1-1]",
+          "status": "passed",
+          "seconds": 0.732
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_decode_cuda_graph_replay[1-3]",
+          "status": "passed",
+          "seconds": 0.678
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_decode_cuda_graph_replay[1-8]",
+          "status": "passed",
+          "seconds": 0.691
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_decode_cuda_graph_replay[2-1]",
+          "status": "passed",
+          "seconds": 0.699
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_decode_cuda_graph_replay[2-3]",
+          "status": "passed",
+          "seconds": 0.691
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_decode_cuda_graph_replay[2-8]",
+          "status": "passed",
+          "seconds": 0.694
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_decode_cuda_graph_replay[4-1]",
+          "status": "passed",
+          "seconds": 0.688
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_decode_cuda_graph_replay[4-3]",
+          "status": "passed",
+          "seconds": 0.692
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_nvfp4_indexer_decode_cuda_graph_replay[4-8]",
+          "status": "passed",
+          "seconds": 0.695
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_topk_correctness[0-1-1]",
+          "status": "passed",
+          "seconds": 0.583
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_topk_correctness[0-1-4]",
+          "status": "passed",
+          "seconds": 0.575
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_topk_correctness[0-4-4]",
+          "status": "passed",
+          "seconds": 0.582
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_topk_correctness[2-1-1]",
+          "status": "passed",
+          "seconds": 0.568
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_topk_correctness[2-1-4]",
+          "status": "passed",
+          "seconds": 0.573
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_topk_correctness[2-4-4]",
+          "status": "passed",
+          "seconds": 0.575
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[0-24-1-16-True-expected0]",
+          "status": "passed",
+          "seconds": 0.559
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[1-1-1-16-True-expected1]",
+          "status": "passed",
+          "seconds": 0.562
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[74-4-1-16-True-expected2]",
+          "status": "passed",
+          "seconds": 0.561
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[128-4-1-16-True-expected3]",
+          "status": "passed",
+          "seconds": 0.564
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[129-4-1-16-True-expected4]",
+          "status": "passed",
+          "seconds": 0.56
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[512-4-1-16-True-expected5]",
+          "status": "passed",
+          "seconds": 0.564
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[513-24-4-16-True-expected6]",
+          "status": "passed",
+          "seconds": 0.561
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[2760-5-2-16-True-expected7]",
+          "status": "passed",
+          "seconds": 0.568
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[8192-64-4-16-True-expected8]",
+          "status": "passed",
+          "seconds": 0.579
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[8193-4-1-16-True-expected9]",
+          "status": "passed",
+          "seconds": 0.573
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[8193-16-1-16-True-expected10]",
+          "status": "passed",
+          "seconds": 0.567
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[65534-64-1-16-True-expected11]",
+          "status": "passed",
+          "seconds": 0.564
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[513-16-1-13-True-expected12]",
+          "status": "passed",
+          "seconds": 0.566
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_topk_launch_policy[513-16-4-16-False-expected13]",
+          "status": "passed",
+          "seconds": 0.567
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[1-False-False-65534-512-8-2-16-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[2-False-False-8193-512-8-2-16-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[4-False-False-8193-512-8-2-16-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[8-False-False-8193-512-8-2-16-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[16-False-False-8193-512-8-2-16-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[16-False-False-65534-512-8-2-16-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[2-True-False-513-512-8-2-13-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[4-False-True-8192-512-4-2-16-2]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[16-True-True-8192-512-4-2-16-4]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_total_order_and_replay[1-True-True-74-128-2-1-16-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_index_topk_end_to_end[1-1-1]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_index_topk_end_to_end[2-1-4]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_index_topk_end_to_end[4-4-4]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_index_topk_end_to_end[4-3-8]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_topk_fp8[1]",
+          "status": "passed",
+          "seconds": 0.592
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_topk_fp8[4]",
+          "status": "passed",
+          "seconds": 0.587
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_score_cutedsl_correctness[dtype0-1-1-False]",
+          "status": "passed",
+          "seconds": 0.583
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_score_cutedsl_correctness[dtype1-3-8-False]",
+          "status": "passed",
+          "seconds": 1.424
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_score_cutedsl_correctness[dtype2-1-1-False]",
+          "status": "passed",
+          "seconds": 0.698
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_score_cutedsl_correctness[dtype3-3-8-False]",
+          "status": "passed",
+          "seconds": 1.532
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_score_cutedsl_correctness[dtype4-8-8-False]",
+          "status": "passed",
+          "seconds": 0.611
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_index_score_cutedsl_correctness[concurrent-writes]",
+          "status": "passed",
+          "seconds": 0.641
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_sparse_attention_correctness[q_lens0-kv_lens0-scalar-NHD]",
+          "status": "passed",
+          "seconds": 1.315
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_sparse_attention_correctness[q_lens0-kv_lens0-scalar-HND]",
+          "status": "passed",
+          "seconds": 0.622
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_sparse_attention_correctness[q_lens1-kv_lens1-scalar-NHD]",
+          "status": "passed",
+          "seconds": 0.645
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_prefill_sparse_attention_correctness[q_lens1-kv_lens1-scalar-HND]",
+          "status": "passed",
+          "seconds": 0.64
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_main_cache_layout_contract",
+          "status": "passed",
+          "seconds": 0.553
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_sparse_pa_layout_contract[KVCacheLayout.LHBNC]",
+          "status": "passed",
+          "seconds": 0.553
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_sparse_pa_layout_contract[KVCacheLayout.LBHNC]",
+          "status": "passed",
+          "seconds": 0.555
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_sparse_pa_rejects_multiple_kv_heads",
+          "status": "passed",
+          "seconds": 0.562
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_msa_indexer_requires_the_aiter_attend",
+          "status": "passed",
+          "seconds": 0.579
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_enabled",
+          "status": "passed",
+          "seconds": 0.56
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_packed_shuffle_unequal_spans",
+          "status": "passed",
+          "seconds": 0.556
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_dtype_and_layout_mapping[auto-auto-False]",
+          "status": "passed",
+          "seconds": 0.562
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_dtype_and_layout_mapping[fp8-fp8_e4m3_static-True]",
+          "status": "passed",
+          "seconds": 0.559
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_dtype_and_layout_mapping[fp8_e4m3-fp8_e4m3_static-True]",
+          "status": "passed",
+          "seconds": 0.562
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_fp8_index_dtype_mapping",
+          "status": "passed",
+          "seconds": 0.557
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_full_and_skip_index_args[False]",
+          "status": "passed",
+          "seconds": 0.564
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_full_and_skip_index_args[True]",
+          "status": "passed",
+          "seconds": 0.563
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_rejects_fp8_e5m2",
+          "status": "passed",
+          "seconds": 0.564
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_sparse_pa_slot_rebase_preserves_page_offsets",
+          "status": "passed",
+          "seconds": 0.571
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_real_packed_shuffle[False-False]",
+          "status": "skipped",
+          "seconds": 0.001
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_real_packed_shuffle[False-True]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_real_packed_shuffle[True-False]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_consolidated_qknorm_real_packed_shuffle[True-True]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_indexer_cache_squeezes_to_contiguous_3d",
+          "status": "passed",
+          "seconds": 0.568
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_hnd_allocation_is_packed_head_major",
+          "status": "passed",
+          "seconds": 0.57
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_main_cache_is_block_first_and_unpadded",
+          "status": "passed",
+          "seconds": 0.568
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_sparse_block_table_handles_padded_decode_rows",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_aiter_decode_sparse_block_table_supports_spec_decode",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list0-8]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list0-16]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list1-8]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list1-16]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list2-8]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list2-16]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list3-8]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list3-16]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list4-8]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_amd_decode_fused_topk_emits_sparse_table[seq_lens_list4-16]",
+          "status": "skipped",
+          "seconds": 0.0
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-1-seq_lens_list0-NHD]",
+          "status": "passed",
+          "seconds": 1.467
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-1-seq_lens_list0-HND]",
+          "status": "passed",
+          "seconds": 0.585
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-1-seq_lens_list1-NHD]",
+          "status": "passed",
+          "seconds": 0.589
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-1-seq_lens_list1-HND]",
+          "status": "passed",
+          "seconds": 0.587
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-1-seq_lens_list2-NHD]",
+          "status": "passed",
+          "seconds": 1.106
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-1-seq_lens_list2-HND]",
+          "status": "passed",
+          "seconds": 0.585
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-4-seq_lens_list0-NHD]",
+          "status": "passed",
+          "seconds": 0.589
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-4-seq_lens_list0-HND]",
+          "status": "passed",
+          "seconds": 0.585
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-4-seq_lens_list1-NHD]",
+          "status": "passed",
+          "seconds": 1.214
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-4-seq_lens_list1-HND]",
+          "status": "passed",
+          "seconds": 0.59
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-4-seq_lens_list2-NHD]",
+          "status": "passed",
+          "seconds": 1.104
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[0-4-seq_lens_list2-HND]",
+          "status": "passed",
+          "seconds": 0.593
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-1-seq_lens_list0-NHD]",
+          "status": "passed",
+          "seconds": 0.581
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-1-seq_lens_list0-HND]",
+          "status": "passed",
+          "seconds": 0.583
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-1-seq_lens_list1-NHD]",
+          "status": "passed",
+          "seconds": 0.591
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-1-seq_lens_list1-HND]",
+          "status": "passed",
+          "seconds": 0.588
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-1-seq_lens_list2-NHD]",
+          "status": "passed",
+          "seconds": 0.591
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-1-seq_lens_list2-HND]",
+          "status": "passed",
+          "seconds": 0.585
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-4-seq_lens_list0-NHD]",
+          "status": "passed",
+          "seconds": 1.119
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-4-seq_lens_list0-HND]",
+          "status": "passed",
+          "seconds": 0.588
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-4-seq_lens_list1-NHD]",
+          "status": "passed",
+          "seconds": 1.245
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-4-seq_lens_list1-HND]",
+          "status": "passed",
+          "seconds": 0.592
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-4-seq_lens_list2-NHD]",
+          "status": "passed",
+          "seconds": 1.14
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_correctness[2-4-seq_lens_list2-HND]",
+          "status": "passed",
+          "seconds": 0.598
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[sentinel-split-k-False-NHD]",
+          "status": "passed",
+          "seconds": 1.472
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[sentinel-split-k-False-HND]",
+          "status": "passed",
+          "seconds": 0.585
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[sentinel-split-k-True-NHD]",
+          "status": "passed",
+          "seconds": 0.586
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[sentinel-split-k-True-HND]",
+          "status": "passed",
+          "seconds": 0.582
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[sentinel-single-chunk-False-NHD]",
+          "status": "passed",
+          "seconds": 1.15
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[sentinel-single-chunk-False-HND]",
+          "status": "passed",
+          "seconds": 0.586
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[sentinel-single-chunk-True-NHD]",
+          "status": "passed",
+          "seconds": 0.582
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[sentinel-single-chunk-True-HND]",
+          "status": "passed",
+          "seconds": 0.587
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[out-of-range-split-k-False-NHD]",
+          "status": "passed",
+          "seconds": 0.585
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[out-of-range-split-k-False-HND]",
+          "status": "passed",
+          "seconds": 0.582
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[out-of-range-split-k-True-NHD]",
+          "status": "passed",
+          "seconds": 0.589
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[out-of-range-split-k-True-HND]",
+          "status": "passed",
+          "seconds": 0.583
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[out-of-range-single-chunk-False-NHD]",
+          "status": "passed",
+          "seconds": 0.588
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[out-of-range-single-chunk-False-HND]",
+          "status": "passed",
+          "seconds": 0.592
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[out-of-range-single-chunk-True-NHD]",
+          "status": "passed",
+          "seconds": 0.587
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_sparse_attention_ignores_invalid_topk[out-of-range-single-chunk-True-HND]",
+          "status": "passed",
+          "seconds": 0.589
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_decode_wrong_layout_breaks_parity",
+          "status": "passed",
+          "seconds": 0.591
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_main_cache_byte_identical_through_production_allocator",
+          "status": "passed",
+          "seconds": 0.579
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_padded_main_cache_is_flagged",
+          "status": "passed",
+          "seconds": 0.566
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_reshape_and_cache_flash_write_persists[NHD]",
+          "status": "passed",
+          "seconds": 0.624
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3",
+          "name": "test_reshape_and_cache_flash_write_persists[HND]",
+          "status": "passed",
+          "seconds": 0.593
+        },
+        {
+          "classname": "tests.kernels.test_minimax_m3_sparse_attn_fp8_scale",
+          "name": "test_minimax_m3_sparse_prefill_fp8_kv_scales[scalar-scalar]",
+          "status": "passed",
+          "seconds": 2.588
+        },
+        {
+          "classname": "tests.kernels.test_minimax_m3_sparse_attn_fp8_scale",
+          "name": "test_minimax_m3_sparse_prefill_fp8_kv_scales[scalar-per_token_head]",
+          "status": "passed",
+          "seconds": 1.549
+        },
+        {
+          "classname": "tests.kernels.test_minimax_m3_sparse_attn_fp8_scale",
+          "name": "test_minimax_m3_sparse_decode_fp8_kv_scales[scalar]",
+          "status": "passed",
+          "seconds": 2.934
+        },
+        {
+          "classname": "tests.kernels.test_minimax_m3_sparse_attn_fp8_scale",
+          "name": "test_minimax_m3_sparse_decode_fp8_kv_scales[per_token_head]",
+          "status": "passed",
+          "seconds": 1.856
+        },
+        {
+          "classname": "tests.kernels.test_minimax_m3_sparse_attn_fp8_scale",
+          "name": "test_minimax_m3_sparse_decode_fp8_split_scales[False-False-scalar]",
+          "status": "passed",
+          "seconds": 2.744
+        },
+        {
+          "classname": "tests.kernels.test_minimax_m3_sparse_attn_fp8_scale",
+          "name": "test_minimax_m3_sparse_decode_fp8_split_scales[False-False-per_token_head]",
+          "status": "passed",
+          "seconds": 1.861
+        },
+        {
+          "classname": "tests.kernels.test_minimax_m3_sparse_attn_fp8_scale",
+          "name": "test_minimax_m3_sparse_decode_fp8_split_scales[True-False-scalar]",
+          "status": "passed",
+          "seconds": 2.277
+        },
+        {
+          "classname": "tests.kernels.test_minimax_m3_sparse_attn_fp8_scale",
+          "name": "test_minimax_m3_sparse_decode_fp8_split_scales[True-False-per_token_head]",
+          "status": "passed",
+          "seconds": 0.563
+        },
+        {
+          "classname": "tests.kernels.test_minimax_m3_sparse_attn_fp8_scale",
+          "name": "test_minimax_m3_sparse_decode_fp8_split_scales[True-True-scalar]",
+          "status": "passed",
+          "seconds": 0.56
+        },
+        {
+          "classname": "tests.kernels.test_minimax_m3_sparse_attn_fp8_scale",
+          "name": "test_minimax_m3_sparse_decode_fp8_split_scales[True-True-per_token_head]",
+          "status": "passed",
+          "seconds": 0.565
+        },
+        {
+          "classname": "tests.kernels.test_minimax_m3_sparse_attn_fp8_scale",
+          "name": "test_minimax_m3_sparse_decode_fp16_saturates_scaled_kv[False-cache_dtype0-200.0]",
+          "status": "passed",
+          "seconds": 1.587
+        },
+        {
+          "classname": "tests.kernels.test_minimax_m3_sparse_attn_fp8_scale",
+          "name": "test_minimax_m3_sparse_decode_fp16_saturates_scaled_kv[False-cache_dtype1-2.0]",
+          "status": "passed",
+          "seconds": 1.347
+        },
+        {
+          "classname": "tests.kernels.test_minimax_m3_sparse_attn_fp8_scale",
+          "name": "test_minimax_m3_sparse_decode_fp16_saturates_scaled_kv[True-cache_dtype0-200.0]",
+          "status": "passed",
+          "seconds": 1.403
+        },
+        {
+          "classname": "tests.kernels.test_minimax_m3_sparse_attn_fp8_scale",
+          "name": "test_minimax_m3_sparse_decode_fp16_saturates_scaled_kv[True-cache_dtype1-2.0]",
+          "status": "passed",
+          "seconds": 1.412
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_fp8_triton_indexer",
+          "name": "test_fp8_index_query_and_cache_decode_topk_matches_bf16",
+          "status": "passed",
+          "seconds": 0.646
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_fp8_triton_indexer",
+          "name": "test_fp8_index_query_and_cache_prefill_topk_matches_bf16",
+          "status": "passed",
+          "seconds": 0.572
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_fp8_triton_indexer",
+          "name": "test_bf16_query_against_fp8_cache_decode_topk_matches_bf16",
+          "status": "passed",
+          "seconds": 0.569
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[qlen1-below-row-floor]",
+          "status": "passed",
+          "seconds": 0.556
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[qlen1-at-row-floor]",
+          "status": "passed",
+          "seconds": 0.561
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[qlen3-below-row-floor]",
+          "status": "passed",
+          "seconds": 0.555
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[qlen3-at-row-floor]",
+          "status": "passed",
+          "seconds": 0.564
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[qlen4-below-row-floor]",
+          "status": "passed",
+          "seconds": 0.564
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[qlen4-at-row-floor]",
+          "status": "passed",
+          "seconds": 0.561
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[qlen8-below-row-floor]",
+          "status": "passed",
+          "seconds": 0.564
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[qlen8-at-row-floor]",
+          "status": "passed",
+          "seconds": 0.565
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[unmeasured-query-length]",
+          "status": "passed",
+          "seconds": 0.57
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[unmeasured-heads]",
+          "status": "passed",
+          "seconds": 0.569
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[sm100-keeps-old-floor]",
+          "status": "passed",
+          "seconds": 0.572
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[query-len-upper-bound]",
+          "status": "passed",
+          "seconds": 0.574
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[query-len-zero]",
+          "status": "passed",
+          "seconds": 0.572
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch[query-len-above-bound]",
+          "status": "passed",
+          "seconds": 0.571
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_requires_opt_in",
+          "status": "passed",
+          "seconds": 0.57
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_accepts_fp8_alias",
+          "status": "passed",
+          "seconds": 0.576
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_requires_fp8_e4m3[auto]",
+          "status": "passed",
+          "seconds": 0.59
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_requires_fp8_e4m3[bfloat16]",
+          "status": "passed",
+          "seconds": 0.583
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_requires_fp8_e4m3[float16]",
+          "status": "passed",
+          "seconds": 0.581
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_requires_fp8_e4m3[fp8_e5m2]",
+          "status": "passed",
+          "seconds": 0.572
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_requires_sm100",
+          "status": "passed",
+          "seconds": 0.579
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_query_head_limits",
+          "status": "passed",
+          "seconds": 0.577
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_nvfp4_has_no_fallback[cutlass]",
+          "status": "passed",
+          "seconds": 0.578
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_static_dispatch_nvfp4_has_no_fallback[triton]",
+          "status": "passed",
+          "seconds": 0.575
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_nvfp4_selects_msa_nvfp4_backend_and_requires_sm100",
+          "status": "passed",
+          "seconds": 0.575
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_attention_backend_alias[None-cutlass]",
+          "status": "passed",
+          "seconds": 0.595
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_attention_backend_alias[AttentionBackendEnum.CUTLASS_MSA-cutlass]",
+          "status": "passed",
+          "seconds": 0.62
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_attention_backend_alias[AttentionBackendEnum.TRITON_MSA-triton]",
+          "status": "passed",
+          "seconds": 0.596
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_backend_owns_msa_metadata_builder",
+          "status": "passed",
+          "seconds": 0.594
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_metadata_builder_prepares_cutlass_for_regular_decode",
+          "status": "passed",
+          "seconds": 0.687
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_metadata_builder_reserves_prefill_workspace_only_on_sm107[True]",
+          "status": "passed",
+          "seconds": 57.424
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_metadata_builder_reserves_prefill_workspace_only_on_sm107[False]",
+          "status": "passed",
+          "seconds": 0.556
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_plan_cache_keys_query_len",
+          "status": "passed",
+          "seconds": 0.567
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_query_stays_valid_when_cutlass_plan_appears_on_replay",
+          "status": "passed",
+          "seconds": 0.562
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp1-query-len-1]",
+          "status": "passed",
+          "seconds": 133.202
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp1-query-len-2]",
+          "status": "passed",
+          "seconds": 102.139
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp1-query-len-3]",
+          "status": "passed",
+          "seconds": 1.365
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp1-query-len-4]",
+          "status": "passed",
+          "seconds": 0.567
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp1-query-len-8]",
+          "status": "passed",
+          "seconds": 0.567
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp4-query-len-1]",
+          "status": "passed",
+          "seconds": 1.387
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp4-query-len-4]",
+          "status": "passed",
+          "seconds": 0.584
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp1-batch-4-query-len-4]",
+          "status": "passed",
+          "seconds": 0.569
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp2-batch-8-query-len-4]",
+          "status": "passed",
+          "seconds": 0.574
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_matches_triton_with_interleaved_cache[tp4-batch-16-query-len-4]",
+          "status": "passed",
+          "seconds": 0.584
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_nvfp4_kv_cache_views_address_head_slots",
+          "status": "passed",
+          "seconds": 0.556
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_nvfp4_matches_triton_on_dequantized_cache[tp1-small-batch-query-len-1]",
+          "status": "passed",
+          "seconds": 56.797
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_nvfp4_matches_triton_on_dequantized_cache[tp1-query-len-8]",
+          "status": "passed",
+          "seconds": 1.851
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_nvfp4_matches_triton_on_dequantized_cache[tp4-query-len-4]",
+          "status": "passed",
+          "seconds": 41.064
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_cutlass_decode_nvfp4_matches_triton_on_dequantized_cache[tp4-query-len-8-1024-requests]",
+          "status": "passed",
+          "seconds": 1.157
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_prefill_nvfp4_matches_triton_on_dequantized_cache[tp1]",
+          "status": "passed",
+          "seconds": 61.852
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_prefill_nvfp4_matches_triton_on_dequantized_cache[tp4]",
+          "status": "passed",
+          "seconds": 1.281
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_prefill_nvfp4_uses_the_builders_workspace[tp1]",
+          "status": "passed",
+          "seconds": 0.629
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_prefill_nvfp4_uses_the_builders_workspace[tp4]",
+          "status": "passed",
+          "seconds": 0.578
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_prefill_reads_the_e4m3_query_over_an_fp8_cache[tp1]",
+          "status": "passed",
+          "seconds": 1.534
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_prefill_reads_the_e4m3_query_over_an_fp8_cache[tp4]",
+          "status": "passed",
+          "seconds": 1.523
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_nvfp4_kv_cache_never_takes_a_bf16_query",
+          "status": "passed",
+          "seconds": 0.55
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_nvfp4_kv_cache_with_tp8_fails_at_config_time[MiniMaxM3SparseForCausalLM]",
+          "status": "passed",
+          "seconds": 0.552
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_nvfp4_kv_cache_with_tp8_fails_at_config_time[MiniMaxM3SparseForConditionalGeneration]",
+          "status": "passed",
+          "seconds": 0.552
+        },
+        {
+          "classname": "tests.kernels.attention.test_minimax_m3_msa_cutlass_sparse_decode",
+          "name": "test_msa_triton_decode_fallback_reads_dequantized_query_fp8",
+          "status": "passed",
+          "seconds": 1.434
+        }
+      ],
+      "exit_code": 0
+    }
   }
 }

@@ -1,0 +1,6 @@
+{
+  "protocol": "gb200-current-main-e2e-v4",
+  "arms": {},
+  "request_timing_projection": "All request timing observations retained in source array order; monotonic origins shifted to earliest queued timestamp per trial, arrival origins shifted independently. Runtime request IDs removed.",
+  "backend_reference_scope": "The arm named cutlass uses current-main default backend and native Triton fallback. Static eligibility and policy snapshots do not prove actual per-step kernel counts."
+}

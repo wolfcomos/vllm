@@ -1,31 +1,14 @@
 {
-  "hardware": {
-    "name": "NVIDIA GB200",
-    "compute_capability": "10.0",
-    "sms_per_gpu": 152,
-    "model_gpu_count": 4,
-    "tensor_parallel_size": 4,
-    "pairwise_nvlink_report": "NV6"
-  },
-  "software": {
-    "torch_base_version": "2.15.0a0",
-    "torch_source_commit_prefix": "875d815502",
-    "cuda": "13.5",
-    "triton_base_version": "3.6.0",
-    "triton_source_commit_prefix": "3362bc8c",
-    "cutlass_dsl": "4.8.0",
-    "flashinfer_base_version": "0.7.2rc4",
-    "flashinfer_source_commit_prefix": "954366a8",
+  "torch": "2.15.0a0+875d815502.nvinternal.main",
+  "cuda": "13.5",
+  "packages": {
+    "vllm": "0.33.0rc1.dev341+ga20280f30",
+    "torch": "2.15.0a0+875d815502.nvinternal.main.73750486",
+    "triton": "3.6.0+git3362bc8c.rubin.devel",
+    "nvidia-cutlass-dsl": "4.8.0",
+    "flashinfer-python": "0.7.2.post1",
     "transformers": "5.17.0",
     "tokenizers": "0.23.3",
-    "driver": "595.84.01"
-  },
-  "native_wheel_commit": "cc2e4fecf2fca603939445faccf20dd466f1502e",
-  "native_build_inputs_match_baseline": true,
-  "native_operator_abi_shim_used": false,
-  "limitations": [
-    "Measurements used a development runtime; identical binaries may not be publicly available.",
-    "Vendor build suffixes, private image identifiers, GPU UUIDs, and filesystem provenance are omitted from this public summary.",
-    "These version and source identifiers do not guarantee bitwise reproduction."
-  ]
+    "quack-kernels": "0.6.5"
+  }
 }

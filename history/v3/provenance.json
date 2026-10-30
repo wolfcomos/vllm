@@ -1,0 +1,444 @@
+{
+  "protocol": "gb200-e2e-abba-v3",
+  "source_pins": {
+    "baseline": {
+      "commit": "9731f30a030c545e7f29a8a4ed96b8562be12c88",
+      "source_hashes": {
+        "config/attention.py": "e2e5be6e30f3077bcfd4e785dc94adcc9dc6ba9d54217e5ec92a5f6a09318e15",
+        "models/minimax_m3/common/ops/sparse_attn.py": "d986e377713589d08c564730ddc277278478fb772bacdcda6ef0bbdf05718f59",
+        "models/minimax_m3/common/sparse_attention.py": "51e62c789b89d135f5fe0afd1881ea5b704d87de9d5a77b552170e548d46482b",
+        "models/minimax_m3/nvidia/model.py": "f31f18ed74f260170f1313a8aa49ef279e9564e4e45d57ef634c394fe5aa8f05",
+        "models/minimax_m3/nvidia/sparse_attention_msa.py": "82884bf06dbe6e77565b434a4789d5dbb8fbe1256dd6938db55191a9aa26cdea"
+      }
+    },
+    "candidate": {
+      "commit": "faf31b04c73400c2af770c280fb8d739a5997fcb",
+      "source_hashes": {
+        "config/attention.py": "d24720c60d138c4f0133ad9d03c9241dc67c75558011417a01a373811a6e9644",
+        "models/minimax_m3/common/ops/sparse_attn.py": "0feeee46ce5260cd85b2764e21407682fee1e4af5a90702194d089589ad284c4",
+        "models/minimax_m3/common/sparse_attention.py": "07de76f90022ccfa4a8cd0754c0e8860f91e6b71916ceee768f107f817de63ce",
+        "models/minimax_m3/nvidia/model.py": "7a08acd01dec9bcd35e2cb46aedeaf64192f76f218300672d60db2bd215435de",
+        "models/minimax_m3/nvidia/sparse_attention_msa.py": "832e541c2001778cbf9cf3bf2298fdf3f8c27509d4b40b59cd75ee3e49118aeb"
+      }
+    }
+  },
+  "runtime": {
+    "torch": "2.15.0a0+875d815502.nvinternal.main",
+    "cuda": "13.5",
+    "packages": {
+      "vllm": "0.32.0rc1.dev304+gcc2e4fecf",
+      "triton": "3.6.0+git3362bc8c.rubin.devel",
+      "flashinfer-python": "0.7.2rc4+954366a8.nvinternal.main.cu.73994051",
+      "nvidia-cutlass-dsl": "4.8.0"
+    }
+  },
+  "runtime_scope": "Recorded development builds; matching public package availability is not established",
+  "model": "nvidia/MiniMax-M3-NVFP4",
+  "model_revision": "901464083161bf8612a29ff7ad29914cd4ab4a85",
+  "common_api_sha256": {
+    "entrypoints/common/offline.py": "06730cea23c890662c283f2228bdd51b461f37f63aa867e357e0c1585da04e8c",
+    "entrypoints/llm.py": "283f5ed4d0744aef22a01fefd307565ef60ee172a8ec4805ece0bcd630d9568c",
+    "sampling_params.py": "88fb3ac6ac3a456be62f5ac2afa7262cec5e00e82c6b425bdefa121cb525cd8a",
+    "v1/engine/llm_engine.py": "b3a9df98e2f0f1cd29fcbb7b079c292f680902a9b578d0d1002015a9a7d6cf15",
+    "v1/engine/core_client.py": "66033cbd564eebb3dff2a82d9b34a9c3fc07084a041b0ea52e4c1d29e97e24ce",
+    "v1/engine/core.py": "f9babdd102a92f2128de6fb127dd3a20002e0dc64e49d1685a57bbbf8bdbdc1b",
+    "v1/core/sched/scheduler.py": "49f21c9a029c9b04884b183b216c2dcc817bebdf67f2497fc9b339c3f87d0c4c",
+    "v1/engine/output_processor.py": "5b24778b4205d56e22e316a9ef0bc067abbbdfb1bf42eb2ff21599010713ba0f",
+    "v1/metrics/stats.py": "5c925d3c9ba8b81c52eac9cff74a2fe468d14cf710b581ab7eb5ca848450e4a6",
+    "outputs.py": "8c09a1f197a4564a38d730735f1ae1a74e548457c3ba5e49a475589947e0e733",
+    "compilation/cuda_graph.py": "6e34824d2e62cd3bbd2eaee615ebfae3db542ce2d6be9b14d1b012398087fe2e"
+  },
+  "executed_harness_sha256": {
+    "run_graph_perf.py": "33fcf62b721e0f4b02cd508238f1f5a5eb7f4a9efac683fc88d9112ef6e68751",
+    "graph_perf_cache_seed.py": "c5d3611aa8750332b94a0de9d47f1f4e60f8b098567cca2c2dfc26dd2e91b169",
+    "run_e2e.py": "807c631c7f3d1c184fb3972966099384ff46bc466a651dff133a459ccc996782",
+    "PROTOCOL.md": "141db42e999ee3685c23e78885254d9c12c4731d518bf2639e25ee07017ce9c2"
+  },
+  "synthetic_inputs_sha256": "0b75efe9de7157be8e82b5d482cfb0e8b445951b91198c3f5e852db15fa8e13a",
+  "previous_baseline_tactic_witness_sha256": "f7424d594560e606d27d87afc6d77fc25b41fd954598e526e056784761ddbdf9",
+  "original_source_pins_sha256": "9647c687a3b072c2cef5c503afb2623f3ab0086f5d9e9922dab3f8967dea0725",
+  "arms": {
+    "baseline": {
+      "status": "complete",
+      "source_commit": "9731f30a030c545e7f29a8a4ed96b8562be12c88",
+      "settings": {
+        "language_model_only": true,
+        "revision": "901464083161bf8612a29ff7ad29914cd4ab4a85",
+        "tokenizer_revision": "901464083161bf8612a29ff7ad29914cd4ab4a85",
+        "tensor_parallel_size": 4,
+        "distributed_executor_backend": "mp",
+        "dtype": "bfloat16",
+        "kv_cache_dtype": "fp8",
+        "block_size": 128,
+        "seed": 42,
+        "enforce_eager": false,
+        "max_model_len": 8192,
+        "max_num_seqs": 40,
+        "max_num_batched_tokens": 4096,
+        "kv_cache_memory_bytes": 8589934592,
+        "enable_chunked_prefill": true,
+        "enable_prefix_caching": false,
+        "generation_config": "vllm",
+        "disable_log_stats": false,
+        "cudagraph_metrics": false,
+        "compilation_config": {
+          "mode": 0,
+          "cudagraph_mode": "FULL_DECODE_ONLY",
+          "cudagraph_capture_sizes": [
+            8,
+            40
+          ],
+          "cudagraph_num_of_warmups": 1
+        },
+        "kernel_config": {
+          "enable_flashinfer_autotune": true
+        },
+        "model": "nvidia/MiniMax-M3-NVFP4",
+        "attention_config": {
+          "indexer_kv_dtype": "fp8",
+          "minimax_m3_msa_decode_backend": "triton"
+        }
+      },
+      "sampling": {
+        "temperature": 0.0,
+        "seed": 42,
+        "ignore_eos": true,
+        "max_tokens": 256,
+        "detokenize": false,
+        "stop": null
+      },
+      "runtime_flags": {
+        "OMP_NUM_THREADS": "4"
+      },
+      "started_at_utc": "2026-10-30T07:48:39.234094+00:00",
+      "finished_at_utc": "2026-10-30T07:56:36.328188+00:00",
+      "cache_sha256_by_rank": [
+        {
+          "rank": 0,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        },
+        {
+          "rank": 1,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        },
+        {
+          "rank": 2,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        },
+        {
+          "rank": 3,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        }
+      ],
+      "cache_unchanged_during_generation": true,
+      "profiling_enabled": false,
+      "dispatch_recorder_installed": false
+    },
+    "default-a": {
+      "status": "complete",
+      "source_commit": "faf31b04c73400c2af770c280fb8d739a5997fcb",
+      "settings": {
+        "language_model_only": true,
+        "revision": "901464083161bf8612a29ff7ad29914cd4ab4a85",
+        "tokenizer_revision": "901464083161bf8612a29ff7ad29914cd4ab4a85",
+        "tensor_parallel_size": 4,
+        "distributed_executor_backend": "mp",
+        "dtype": "bfloat16",
+        "kv_cache_dtype": "fp8",
+        "block_size": 128,
+        "seed": 42,
+        "enforce_eager": false,
+        "max_model_len": 8192,
+        "max_num_seqs": 40,
+        "max_num_batched_tokens": 4096,
+        "kv_cache_memory_bytes": 8589934592,
+        "enable_chunked_prefill": true,
+        "enable_prefix_caching": false,
+        "generation_config": "vllm",
+        "disable_log_stats": false,
+        "cudagraph_metrics": false,
+        "compilation_config": {
+          "mode": 0,
+          "cudagraph_mode": "FULL_DECODE_ONLY",
+          "cudagraph_capture_sizes": [
+            8,
+            40
+          ],
+          "cudagraph_num_of_warmups": 1
+        },
+        "kernel_config": {
+          "enable_flashinfer_autotune": true
+        },
+        "model": "nvidia/MiniMax-M3-NVFP4",
+        "attention_config": {
+          "indexer_kv_dtype": "fp8",
+          "minimax_m3_msa_decode_backend": "triton"
+        }
+      },
+      "sampling": {
+        "temperature": 0.0,
+        "seed": 42,
+        "ignore_eos": true,
+        "max_tokens": 256,
+        "detokenize": false,
+        "stop": null
+      },
+      "runtime_flags": {
+        "OMP_NUM_THREADS": "4"
+      },
+      "started_at_utc": "2026-10-30T07:56:42.131147+00:00",
+      "finished_at_utc": "2026-10-30T08:04:24.287155+00:00",
+      "cache_sha256_by_rank": [
+        {
+          "rank": 0,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        },
+        {
+          "rank": 1,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        },
+        {
+          "rank": 2,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        },
+        {
+          "rank": 3,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        }
+      ],
+      "cache_unchanged_during_generation": true,
+      "profiling_enabled": false,
+      "dispatch_recorder_installed": false
+    },
+    "fp16-a": {
+      "status": "complete",
+      "source_commit": "faf31b04c73400c2af770c280fb8d739a5997fcb",
+      "settings": {
+        "language_model_only": true,
+        "revision": "901464083161bf8612a29ff7ad29914cd4ab4a85",
+        "tokenizer_revision": "901464083161bf8612a29ff7ad29914cd4ab4a85",
+        "tensor_parallel_size": 4,
+        "distributed_executor_backend": "mp",
+        "dtype": "bfloat16",
+        "kv_cache_dtype": "fp8",
+        "block_size": 128,
+        "seed": 42,
+        "enforce_eager": false,
+        "max_model_len": 8192,
+        "max_num_seqs": 40,
+        "max_num_batched_tokens": 4096,
+        "kv_cache_memory_bytes": 8589934592,
+        "enable_chunked_prefill": true,
+        "enable_prefix_caching": false,
+        "generation_config": "vllm",
+        "disable_log_stats": false,
+        "cudagraph_metrics": false,
+        "compilation_config": {
+          "mode": 0,
+          "cudagraph_mode": "FULL_DECODE_ONLY",
+          "cudagraph_capture_sizes": [
+            8,
+            40
+          ],
+          "cudagraph_num_of_warmups": 1
+        },
+        "kernel_config": {
+          "enable_flashinfer_autotune": true
+        },
+        "model": "nvidia/MiniMax-M3-NVFP4",
+        "attention_config": {
+          "indexer_kv_dtype": "fp8",
+          "minimax_m3_msa_decode_backend": "triton",
+          "minimax_m3_msa_decode_fp16_dot": true
+        }
+      },
+      "sampling": {
+        "temperature": 0.0,
+        "seed": 42,
+        "ignore_eos": true,
+        "max_tokens": 256,
+        "detokenize": false,
+        "stop": null
+      },
+      "runtime_flags": {
+        "OMP_NUM_THREADS": "4"
+      },
+      "started_at_utc": "2026-10-30T08:04:29.927154+00:00",
+      "finished_at_utc": "2026-10-30T08:08:32.707151+00:00",
+      "cache_sha256_by_rank": [
+        {
+          "rank": 0,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        },
+        {
+          "rank": 1,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        },
+        {
+          "rank": 2,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        },
+        {
+          "rank": 3,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        }
+      ],
+      "cache_unchanged_during_generation": true,
+      "profiling_enabled": false,
+      "dispatch_recorder_installed": false
+    },
+    "fp16-b": {
+      "status": "complete",
+      "source_commit": "faf31b04c73400c2af770c280fb8d739a5997fcb",
+      "settings": {
+        "language_model_only": true,
+        "revision": "901464083161bf8612a29ff7ad29914cd4ab4a85",
+        "tokenizer_revision": "901464083161bf8612a29ff7ad29914cd4ab4a85",
+        "tensor_parallel_size": 4,
+        "distributed_executor_backend": "mp",
+        "dtype": "bfloat16",
+        "kv_cache_dtype": "fp8",
+        "block_size": 128,
+        "seed": 42,
+        "enforce_eager": false,
+        "max_model_len": 8192,
+        "max_num_seqs": 40,
+        "max_num_batched_tokens": 4096,
+        "kv_cache_memory_bytes": 8589934592,
+        "enable_chunked_prefill": true,
+        "enable_prefix_caching": false,
+        "generation_config": "vllm",
+        "disable_log_stats": false,
+        "cudagraph_metrics": false,
+        "compilation_config": {
+          "mode": 0,
+          "cudagraph_mode": "FULL_DECODE_ONLY",
+          "cudagraph_capture_sizes": [
+            8,
+            40
+          ],
+          "cudagraph_num_of_warmups": 1
+        },
+        "kernel_config": {
+          "enable_flashinfer_autotune": true
+        },
+        "model": "nvidia/MiniMax-M3-NVFP4",
+        "attention_config": {
+          "indexer_kv_dtype": "fp8",
+          "minimax_m3_msa_decode_backend": "triton",
+          "minimax_m3_msa_decode_fp16_dot": true
+        }
+      },
+      "sampling": {
+        "temperature": 0.0,
+        "seed": 42,
+        "ignore_eos": true,
+        "max_tokens": 256,
+        "detokenize": false,
+        "stop": null
+      },
+      "runtime_flags": {
+        "OMP_NUM_THREADS": "4"
+      },
+      "started_at_utc": "2026-10-30T08:08:38.347082+00:00",
+      "finished_at_utc": "2026-10-30T08:12:26.504012+00:00",
+      "cache_sha256_by_rank": [
+        {
+          "rank": 0,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        },
+        {
+          "rank": 1,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        },
+        {
+          "rank": 2,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        },
+        {
+          "rank": 3,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        }
+      ],
+      "cache_unchanged_during_generation": true,
+      "profiling_enabled": false,
+      "dispatch_recorder_installed": false
+    },
+    "default-b": {
+      "status": "complete",
+      "source_commit": "faf31b04c73400c2af770c280fb8d739a5997fcb",
+      "settings": {
+        "language_model_only": true,
+        "revision": "901464083161bf8612a29ff7ad29914cd4ab4a85",
+        "tokenizer_revision": "901464083161bf8612a29ff7ad29914cd4ab4a85",
+        "tensor_parallel_size": 4,
+        "distributed_executor_backend": "mp",
+        "dtype": "bfloat16",
+        "kv_cache_dtype": "fp8",
+        "block_size": 128,
+        "seed": 42,
+        "enforce_eager": false,
+        "max_model_len": 8192,
+        "max_num_seqs": 40,
+        "max_num_batched_tokens": 4096,
+        "kv_cache_memory_bytes": 8589934592,
+        "enable_chunked_prefill": true,
+        "enable_prefix_caching": false,
+        "generation_config": "vllm",
+        "disable_log_stats": false,
+        "cudagraph_metrics": false,
+        "compilation_config": {
+          "mode": 0,
+          "cudagraph_mode": "FULL_DECODE_ONLY",
+          "cudagraph_capture_sizes": [
+            8,
+            40
+          ],
+          "cudagraph_num_of_warmups": 1
+        },
+        "kernel_config": {
+          "enable_flashinfer_autotune": true
+        },
+        "model": "nvidia/MiniMax-M3-NVFP4",
+        "attention_config": {
+          "indexer_kv_dtype": "fp8",
+          "minimax_m3_msa_decode_backend": "triton"
+        }
+      },
+      "sampling": {
+        "temperature": 0.0,
+        "seed": 42,
+        "ignore_eos": true,
+        "max_tokens": 256,
+        "detokenize": false,
+        "stop": null
+      },
+      "runtime_flags": {
+        "OMP_NUM_THREADS": "4"
+      },
+      "started_at_utc": "2026-10-30T08:12:32.076848+00:00",
+      "finished_at_utc": "2026-10-30T08:16:25.415512+00:00",
+      "cache_sha256_by_rank": [
+        {
+          "rank": 0,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        },
+        {
+          "rank": 1,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        },
+        {
+          "rank": 2,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        },
+        {
+          "rank": 3,
+          "sha256": "76fe54027163b28a5ee34e116e842671e66fd07f56789a30b2f7df59d3c965b7"
+        }
+      ],
+      "cache_unchanged_during_generation": true,
+      "profiling_enabled": false,
+      "dispatch_recorder_installed": false
+    }
+  }
+}

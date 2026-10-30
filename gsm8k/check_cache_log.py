@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 import re
 
+from gsm8k_cache_seed import PROTOCOL
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -13,23 +15,25 @@ def main():
     args = parser.parse_args()
     result = json.loads((args.output / "result.json").read_text())
     assert result["status"] == "complete"
-    if result["mode"] == "baseline":
-        return
+    assert result["protocol"] == PROTOCOL
     log = (args.output / "run.log").read_text()
-    expected = {item["destination"]: item["sha256"]
-                for rank in result["validation_cache_seed"] for item in rank["files"]}
+    expected = {item["path"]: item["sha256"] for item in result["autotune_cache_after_generation"]}
     loaded = {path: int(count) for count, path in re.findall(
         r"\[Autotuner\]: Loaded (\d+) configs from (\S+)", log)}
-    assert set(expected) == set(loaded), (expected, loaded)
+    if result["mode"] != "baseline":
+        assert set(expected) == set(loaded), (expected, loaded)
+    else:
+        assert not loaded, ("Fresh baseline unexpectedly loaded saved tactics", loaded)
     for path, digest in expected.items():
         raw = Path(path).read_bytes()
         assert hashlib.sha256(raw).hexdigest() == digest
         configs = json.loads(raw)
         count = sum(not key.startswith("_") for key in configs)
-        assert loaded[path] == count, (path, loaded[path], count)
+        if result["mode"] != "baseline":
+            assert loaded[path] == count, (path, loaded[path], count)
     hits = re.findall(r"Config cache hit for (.+?) \(runner=(.+?), source=config file\)", log)
-    assert sum(op == "mxfp8_gemm" for op, _ in hits) == 4, hits
-    assert sum(op == "flashinfer::trtllm_fp4_block_scale_moe" for op, _ in hits) == 4, hits
+    # Current main skips the dummy-run sweep after unanimous cache load. Cache
+    # hit log counts need not match the older path's one warmup call per rank.
     report = {"passed": True, "loaded_files": loaded, "cache_hits": hits,
               "expected_hashes": expected,
               "profiling_counters_after_startup": result["autotuner_statistics_after_startup"],

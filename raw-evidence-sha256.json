@@ -1,0 +1,15 @@
+{
+  "runtime": "96c1e1f642b54328f012dc8bb16c9e839ac941c862a86112d64399c10364e4e2",
+  "tests/status": "68ca93c3fd7c78fe7b3d009989e611eee521be89bf27d1259c3a9f3b0ef51ca1",
+  "tests/baseline.xml": "8ba3b43ce08d413895b63a0fe1bd80b1fd10b74bf04c7ce8f28c616ba7ae445a",
+  "tests/candidate.xml": "d38316e5afc320b6e24af4d1b768cbc8be5f1bfa1b13fbd0c047e996068aa407",
+  "gsm8k/baseline": "a9edbf6343bc9445caf605e906dca22225b73e5f3e8c7e7cb6a89fc87059a141",
+  "gsm8k/baseline/predictions": "e6b572a6cc15bcd96f4b58a32d8cd43f314c0eca3691007515919b444a483e9f",
+  "gsm8k/bf16": "f7e65202a63f88e16979ca9b07b6583197885edee9968e1dfe50b6fa3f4ded5e",
+  "gsm8k/bf16/predictions": "e6b572a6cc15bcd96f4b58a32d8cd43f314c0eca3691007515919b444a483e9f",
+  "gsm8k/fp16": "16563965c23e386393af389b44861a060d3ced0add09ce827b7d853d15c8e34e",
+  "gsm8k/fp16/predictions": "14c58bccb1798e580b6380588fac4caa1611def11dfdf94f5f9b51cb6a1fffb4",
+  "gsm8k/comparison": "115c99932e00aeed750cad7a3072346c88d9f6607feb4518c83a289429bf2ac4",
+  "telemetry/gsm8k": "e15133f35d925a7e500805b494e56c19d348398c1059ad9dfe1b6de60faeb6f6",
+  "history/v3/manifest": "c18b5381ab64f6742d98d39a8a3bda49f4dc17066ec4daca5885b30c77786a47"
+}

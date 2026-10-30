@@ -1,0 +1,14 @@
+{
+  "LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+  "PROTOCOL.md": "141db42e999ee3685c23e78885254d9c12c4731d518bf2639e25ee07017ce9c2",
+  "README.md": "bfa4847a77f17dce8f069bd87ce5bde90be86c218fb4fbb2f88d343c78effb37",
+  "frozen-comparison.json": "1f1351a23887efa7928d76068e6d68311cf1c4c9512f39e1bbc9cd686e525e32",
+  "harness/compare_e2e.py": "c28d757df187979595d2c35cb21bd4bbe2e855b5e35c62fe6d305e40329827df",
+  "harness/orchestrate.py": "7758963063871c76af89fa4cb4c33c81ba957cf36e52d68c073ac17858d7ef9d",
+  "harness/run_e2e.py": "807c631c7f3d1c184fb3972966099384ff46bc466a651dff133a459ccc996782",
+  "observations.json": "59b292da7b31d52d3435c1c67b4bfe9389792f676357c59ab136493dce2ebee0",
+  "posthoc-tail.json": "c57a43894dcb30fa34b9bbfca2d39c94cb71648857d992262953307c71e23c11",
+  "provenance.json": "91ea6eb99855db90e970219037af2625f0d7ea9eb8db68846e46d54238e5dd8d",
+  "raw-evidence-sha256.json": "442d7bee8ccb79a05f96af3a71c69f3dd32f663b44fcca55f4d427daec928503",
+  "redaction-audit.json": "766702001d49a592911ba5e9abf7eef7b19956a9adedae4e9edf39a07412f719"
+}
