@@ -2,7 +2,7 @@
 
 Baseline: `a20280f30e3169d33a7e21d1d117e9719bace00b`. Candidate: `25acf1953bf42857aec52d5f90cb7eac174d3189`.
 
-Incomplete: unavailable or non-complete records are explicitly listed in availability.json.
+All required result groups are available. Consult their actual gates; completeness does not mean they passed.
 
 This supplement contains exact pinned operator source, executed validation harnesses, protocols and selected public result fields. `SHA256SUMS.json` covers every other artifact. `raw-evidence-sha256.json` records hashes of the original result files; the projected JSON is deliberately not a byte-identical copy of those private files. Raw prompts, model responses, token arrays, machine identities, infrastructure addresses and original filesystem locations are excluded. `/work` paths inside harnesses describe a portable container mount layout, not the machine used for the experiment.
 
@@ -20,6 +20,8 @@ The E2E arms called `baseline`, `default-a`, `fp16-a`, `fp16-b`, and `default-b`
 - `e2e/comparison.json`, when available, retains all ratios, repeatability checks, prospective common-tail gates and the previous3% mean-TPOT criterion, including failures. Passing one criterion does not relabel a failure in another. The common tail spans latest first token to latest last token with a verified common request witness; it is a draining-batch interval, not fixed-batch kernel time or serving p99 ITL.
 - `availability.json` lists missing or incomplete evidence explicitly. An absent comparator supplies no verdict. `runtime-summary.json` and per-arm runtime fields contain the observed package versions; native-library hashes appear where recorded. No unrecorded driver version is inferred.
 - `telemetry/gsm8k-gpu-samples.csv` belongs to the instrumented quality run; `telemetry/e2e-gpu-samples.csv` belongs to the separate performance run. Either can be unavailable. Optional throttle bitmasks are retained when recorded, including explicit unavailable values; missing values are never converted to zero. Naive sampler timestamps retain their original clock convention.
+
+The frozen E2E harness records FlashInfer `configuration_count` as the payload key count minus one. Its value of 161 includes the reserved `_generation` key: each payload actually contains 160 tactics plus `_metadata` and `_generation`. The original count is retained here. Independent validation checked the actual payload hashes and the 160-tactic load/save log counts; this bookkeeping correction does not change the harness, observations or performance gates.
 
 [Historical v3 evidence](history/v3/README.md) retains all 120 observations and its nine failed performance gates. Its exploratory tail diagnostic remains explicitly post hoc.
 

@@ -21,6 +21,8 @@ The E2E arms called `baseline`, `default-a`, `fp16-a`, `fp16-b`, and `default-b`
 - `availability.json` lists missing or incomplete evidence explicitly. An absent comparator supplies no verdict. `runtime-summary.json` and per-arm runtime fields contain the observed package versions; native-library hashes appear where recorded. No unrecorded driver version is inferred.
 - `telemetry/gsm8k-gpu-samples.csv` belongs to the instrumented quality run; `telemetry/e2e-gpu-samples.csv` belongs to the separate performance run. Either can be unavailable. Optional throttle bitmasks are retained when recorded, including explicit unavailable values; missing values are never converted to zero. Naive sampler timestamps retain their original clock convention.
 
+The frozen E2E harness records FlashInfer `configuration_count` as the payload key count minus one. Its value of 161 includes the reserved `_generation` key: each payload actually contains 160 tactics plus `_metadata` and `_generation`. The original count is retained here. Independent validation checked the actual payload hashes and the 160-tactic load/save log counts; this bookkeeping correction does not change the harness, observations or performance gates.
+
 @HISTORY@
 
 The E2E workload uses real pretrained `nvidia/MiniMax-M3-NVFP4` weights at revision `901464083161bf8612a29ff7ad29914cd4ab4a85`, with fixed synthetic 2048-token inputs and2048 output tokens, batches8/40, TP4 on four GB200 GPUs, FP8 main/index KV, chunked prefill, and `FULL_DECODE_ONLY` graphs with eager prefill. It is not a natural-traffic or HTTP serving benchmark. Graph availability/policy checks do not prove every timed token replayed a graph. The complete workload and predeclared local criteria are in `e2e/PROTOCOL.md`.
