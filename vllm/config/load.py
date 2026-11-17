@@ -126,6 +126,19 @@ class LoadConfig:
     load different files in a randomized order.
     Set to True to enable shuffling. Default is False.
     """
+    drop_checkpoint_page_cache: bool = False
+    """
+    Whether to evict the checkpoint's weight files from the OS page cache once
+    the model has been loaded and warmed up (Linux only, through
+    `posix_fadvise(POSIX_FADV_DONTNEED)`). Loading a large checkpoint leaves it
+    resident in the page cache. That memory is reclaimable, but a host that
+    then allocates large pinned or huge-page buffers (CPU KV cache offload,
+    external KV stores) pays for the reclaim at allocation time. Eviction runs
+    after warm-up, whose collectives ensure the ranks of this worker's
+    parallel groups have finished reading the files. It is only a hint: a
+    process that still reads the files afterwards reads them from disk again.
+    Default is False.
+    """
 
     def compile_factors(self) -> CompileFactors:
         """This config does not affect the compiled graph.

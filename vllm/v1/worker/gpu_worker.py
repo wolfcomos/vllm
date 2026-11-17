@@ -1270,6 +1270,9 @@ class Worker(WorkerBase):
         freeze_gc_heap()
         maybe_attach_gc_debug_callback()
 
+        if self.load_config.drop_checkpoint_page_cache:
+            self._drop_checkpoint_page_cache()
+
         # Warmup / first-compile is done — activate the `VLLM_GPU_SYNC_CHECK`
         # gate so subsequent `execute_model` / `sample_tokens` calls enforce it.
         enable_gpu_sync_check()
@@ -1293,6 +1296,22 @@ class Worker(WorkerBase):
             language_model=self.compilation_config.compilation_time,
             encoder=self.compilation_config.encoder_compilation_time,
             num_kv_blocks=num_kv_blocks,
+        )
+
+    def _drop_checkpoint_page_cache(self) -> None:
+        """Evict the loaded checkpoint from the OS page cache.
+
+        Runs after warm-up, whose collectives order it after the weight loading
+        of every rank in this worker's parallel groups.
+        """
+        from vllm.model_executor.model_loader.weight_utils import (
+            drop_checkpoint_cache,
+        )
+
+        drop_checkpoint_cache(
+            self.model_config.model_weights or self.model_config.model,
+            revision=self.model_config.revision,
+            cache_dir=self.load_config.download_dir,
         )
 
     def _maybe_activate_jit_monitor(self) -> None:
